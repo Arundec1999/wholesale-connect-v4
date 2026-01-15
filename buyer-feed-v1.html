@@ -41,21 +41,26 @@ const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6
 const BUYER_ID="BUY001";
 const SUPPLIER_ID="SUP001";
 
-/* Load published batches */
-fetch(`${API}?action=getSupplierUpdates&supplierId=${SUPPLIER_ID}`)
-.then(r=>r.json())
-.then(j=>{
-  if(j.status!=="success"){
-    alert(j.message);
-    return;
-  }
-  alert("Request sent to supplier");
-  q.value="";
-  reloadFeed();   // 🔥 refresh sellable numbers
-});
+/* ================= LOAD FEED ================= */
+
+function reloadFeed(){
+  fetch(`${API}?action=getSupplierUpdates&supplierId=${SUPPLIER_ID}`)
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){
+      document.getElementById("feed").innerText=j.message;
+      return;
+    }
+    render(j.data||[]);
+  })
+  .catch(()=>document.getElementById("feed").innerText="Network error");
+}
+
+reloadFeed();   // initial load
 
 
-/* Render feed */
+/* ================= RENDER ================= */
+
 function render(batches){
   const f=document.getElementById("feed");
   f.innerHTML="";
@@ -92,7 +97,9 @@ function render(batches){
   });
 }
 
-/* Add to basket (ledger-safe) */
+
+/* ================= ADD REQUEST ================= */
+
 function add(batchId,productCode){
   const q=document.getElementById(`q_${batchId}_${productCode}`);
   const sets=Number(q.value);
@@ -115,8 +122,8 @@ function add(batchId,productCode){
       alert(j.message);
       return;
     }
-    alert("Request sent to supplier");
     q.value="";
+    reloadFeed();   // 🔥 live sellable refresh
   });
 }
 </script>
