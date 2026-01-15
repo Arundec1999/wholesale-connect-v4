@@ -8,86 +8,203 @@
 body{font-family:Arial;background:#f4f5f7;margin:0}
 header{background:#fff;padding:16px;border-bottom:1px solid #ddd;font-size:20px;font-weight:600}
 .container{display:flex;gap:20px;padding:20px}
+
 .left{width:360px;background:#fff;padding:16px;border-radius:10px}
 .right{flex:1;background:#fff;padding:16px;border-radius:10px}
-input,textarea{width:100%;padding:9px;margin:6px 0 12px;border:1px solid #ccc;border-radius:6px}
-button{background:#000;color:#fff;border:none;border-radius:6px;padding:8px 12px}
-.product{padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:10px}
+
+input,textarea,select{
+  width:100%;
+  padding:9px;
+  margin:6px 0 12px;
+  border:1px solid #ccc;
+  border-radius:6px;
+}
+
+button{
+  background:#000;color:#fff;
+  border:none;border-radius:6px;
+  padding:8px 12px;
+  cursor:pointer
+}
+
+.top{display:flex;gap:10px;margin-bottom:14px}
+
+.products{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:14px
+}
+
+.product{
+  display:flex;gap:12px;
+  padding:12px;border:1px solid #e5e5e5;
+  border-radius:10px
+}
+
+.product img{
+  width:70px;height:90px;
+  object-fit:cover;border-radius:6px;background:#eee
+}
+
+.stock{font-weight:600;margin-top:4px}
+.ok{color:#2e7d32}
+.low{color:#c62828}
 </style>
 </head>
 
 <body>
-<header>Product Master</header>
+
+<header>PRODUCT MASTER</header>
 
 <div class="container">
+
+<!-- LEFT PANEL -->
 <div class="left">
-<h3 id="title">Add Product</h3>
-<input id="code" placeholder="Product Code">
-<input id="name" placeholder="Product Name">
-<textarea id="desc" placeholder="Description"></textarea>
-<input id="sizes" placeholder="Sizes (M,L,XL)">
-<input id="price" placeholder="Price per PC">
-<input id="gst" placeholder="GST %">
-<input id="stock" placeholder="Physical Godown Stock (sets)">
-<button onclick="save()">Save</button>
+<h3 id="formTitle">Add Product</h3>
+
+<input id="pCode" placeholder="Product Code">
+<input id="pName" placeholder="Product Name">
+<textarea id="pDesc" placeholder="Description"></textarea>
+<input id="pSizes" placeholder="Sizes (M,L,XL)">
+<input id="pPrice" placeholder="Price per PC">
+<input id="pGST" placeholder="GST %">
+<input id="pStock" placeholder="Physical Godown Stock (sets)">
+<input id="pImages" placeholder="Image URLs (comma separated)">
+
+<button onclick="saveProduct()">Save Product</button>
 </div>
 
-<div class="right" id="list">Loading…</div>
+<!-- RIGHT PANEL -->
+<div class="right">
+<div class="top">
+  <input id="search" placeholder="Search" oninput="render()">
+  <select id="sort" onchange="render()">
+    <option value="latest">Latest added</option>
+    <option value="stockHigh">Stock High → Low</option>
+    <option value="stockLow">Stock Low → High</option>
+  </select>
+</div>
+
+<div id="list" class="products">Loading products…</div>
+</div>
+
 </div>
 
 <script>
 const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
-const supplierId=localStorage.getItem("supplierId")||"SUP1";
+const SUPPLIER_ID="SUP001";
 
-let data=[];
-let editing=null;
+let products=[];
+let editingProductCode=null;
 
-function load(){
- fetch(API+`?action=getProductStockSummary&supplierId=${supplierId}`)
- .then(r=>r.json()).then(j=>{data=j.data; render();});
+/* ---------- LOAD ---------- */
+function loadProducts(){
+  fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      products=j.data||[];
+      render();
+    });
 }
-load();
 
+/* ---------- RENDER ---------- */
 function render(){
- list.innerHTML="";
- data.forEach(p=>{
-   list.innerHTML+=`
-    <div class="product">
-      <b>${p.productCode}</b> - ${p.productName}<br>
-      Sizes: ${p.sizes.join(", ")}<br>
-      Physical: ${p.physical_stock}<br>
-      Allocated: ${p.allocated_sets}<br>
-      Allocatable: ${p.allocatable}<br>
-      <button onclick="edit('${p.productCode}')">Edit</button>
-    </div>`;
- });
+  const q=search.value.toLowerCase();
+  let data=[...products];
+
+  data=data.filter(p =>
+    String(p.productCode).toLowerCase().includes(q) ||
+    p.productName.toLowerCase().includes(q)
+  );
+
+  if(sort.value==="latest"){
+    data.sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+  }
+  if(sort.value==="stockHigh"){
+    data.sort((a,b)=>(b.physical_stock||0)-(a.physical_stock||0));
+  }
+  if(sort.value==="stockLow"){
+    data.sort((a,b)=>(a.physical_stock||0)-(b.physical_stock||0));
+  }
+
+  list.innerHTML="";
+  data.forEach(p=>{
+    const stock=p.physical_stock||0;
+    list.innerHTML+=`
+      <div class="product">
+        <img src="${p.imageURLs?.[0]||""}">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <div>${p.productName}</div>
+          <small>Sizes: ${p.sizes.join(", ")}</small><br>
+          <small>₹${p.pricePerPC} per pc</small>
+
+          <div class="stock ${stock>0?'ok':'low'}">
+            Physical: ${p.physical_stock} sets<br>
+            Allocated: ${p.allocated_sets} sets<br>
+            Allocatable: ${p.allocatable} sets
+          </div>
+
+          <button onclick="editProduct('${p.productCode}')">Edit</button>
+        </div>
+      </div>`;
+  });
 }
 
-function edit(code){
- const p=data.find(x=>x.productCode==code);
- editing=code;
- code.value=p.productCode;
- name.value=p.productName;
- desc.value=p.description||"";
- sizes.value=p.sizes.join(",");
- price.value=p.pricePerPC;
- gst.value=p.gstPercent;
- stock.value=p.physical_stock;
+/* ---------- EDIT ---------- */
+function editProduct(code){
+  const p=products.find(x=>String(x.productCode)===String(code));
+  if(!p) return;
+
+  editingProductCode=code;
+  formTitle.innerText="Edit Product";
+
+  pCode.value=p.productCode;
+  pCode.disabled=true;
+
+  pName.value=p.productName;
+  pDesc.value=p.description||"";
+  pSizes.value=p.sizes.join(",");
+  pPrice.value=p.pricePerPC;
+  pGST.value=p.gstPercent;
+  pStock.value=p.physical_stock||0;
+  pImages.value=(p.imageURLs||[]).join(",");
 }
 
-function save(){
- const payload=
- `&supplierId=${supplierId}`+
- `&productCode=${code.value}`+
- `&productName=${name.value}`+
- `&sizesJSON=${encodeURIComponent(JSON.stringify(sizes.value.split(",").map(s=>s.trim())))}`+
- `&pricePerPC=${price.value}`+
- `&gstPercent=${gst.value}`+
- `&physical_stock=${stock.value}`;
+/* ---------- SAVE ---------- */
+function saveProduct(){
+  const payload =
+    `&supplierId=${SUPPLIER_ID}`+
+    `&productCode=${encodeURIComponent(pCode.value)}`+
+    `&productName=${encodeURIComponent(pName.value)}`+
+    `&description=${encodeURIComponent(pDesc.value)}`+
+    `&sizesJSON=${encodeURIComponent(JSON.stringify(pSizes.value.split(",").map(s=>s.trim())))}`+
+    `&pricePerPC=${pPrice.value}`+
+    `&gstPercent=${pGST.value}`+
+    `&imageURLsJSON=${encodeURIComponent(JSON.stringify(pImages.value.split(",").map(i=>i.trim())))}`+
+    `&physical_stock=${pStock.value}`;
 
- const action=editing?"updateProduct":"addProduct";
- fetch(API+`?action=${action}${payload}`).then(load);
+  const action = editingProductCode ? "updateProduct" : "addProduct";
+
+  fetch(`${API}?action=${action}${payload}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+      resetForm();
+      loadProducts();
+    });
 }
+
+/* ---------- RESET ---------- */
+function resetForm(){
+  editingProductCode=null;
+  formTitle.innerText="Add Product";
+  pCode.disabled=false;
+  pCode.value=pName.value=pDesc.value=pSizes.value=pPrice.value=pGST.value=pStock.value=pImages.value="";
+}
+
+loadProducts();
 </script>
+
 </body>
 </html>
