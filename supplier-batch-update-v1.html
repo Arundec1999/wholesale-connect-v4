@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Stock Updates to Customers</title>
+
+<style>
+body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0}
+header{background:#fff;padding:18px 22px;border-bottom:1px solid #ddd;font-size:20px;font-weight:600}
+
+.container{
+  display:grid;
+  grid-template-columns:1fr 360px 1fr;
+  gap:24px;
+  padding:24px
+}
+
+.panel{
+  background:#fff;
+  padding:18px;
+  border-radius:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06)
+}
+
+.panel h3{margin-top:0;font-size:16px}
+
+.top{display:flex;gap:10px;margin-bottom:14px}
+.top input{flex:1}
+
+input, textarea, select{
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  font-size:14px
+}
+
+textarea{resize:vertical}
+
+button{
+  padding:10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:13px;
+  width:100%;
+}
+button.small{padding:6px 10px;font-size:12px;width:auto}
+button.warn{background:#c62828}
+
+.products{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px
+}
+
+.product{
+  display:flex;
+  gap:10px;
+  padding:10px;
+  border:1px solid #e5e5e5;
+  border-radius:10px
+}
+
+.product img{
+  width:60px;height:80px;
+  object-fit:cover;
+  background:#eee;border-radius:6px
+}
+
+.product small{display:block;color:#555;font-size:12px}
+
+.stock.ok{color:#2e7d32;font-weight:600}
+.stock.low{color:#c62828;font-weight:600}
+
+.batch-box{
+  background:#fff8c4;
+  padding:12px;
+  border-radius:8px;
+  font-size:14px;
+  margin-bottom:16px
+}
+
+.hidden{display:none}
+
+@media(max-width:1200px){
+  .products{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+
+<header>STOCK UPDATES TO CUSTOMERS</header>
+
+<div class="container">
+
+<!-- LEFT -->
+<div class="panel">
+  <h3>Products</h3>
+  <div class="top">
+    <select id="sort" onchange="renderProducts()">
+      <option value="latest">Latest</option>
+      <option value="name">Name</option>
+      <option value="stock">Available Stock</option>
+    </select>
+    <input id="search" placeholder="Search product" oninput="renderProducts()">
+  </div>
+  <div id="productList" class="products">Loading products…</div>
+</div>
+
+<!-- CENTER -->
+<div class="panel">
+  <h3>Batch Control</h3>
+
+  <div id="noBatch">
+    <button onclick="startBatch()">Start Batch</button>
+  </div>
+
+  <div id="batchRunning" class="hidden">
+    <div class="batch-box">
+      <b>Batch Running</b><br>
+      Batch ID: <span id="batchIdText"></span><br>
+      Started at: <span id="batchTimeText"></span><br>
+      Supplier: SUP001
+    </div>
+
+    <div id="selectedProductInfo"
+      style="font-size:13px;color:#555;margin-bottom:10px">
+      Select product from left
+    </div>
+
+    <input id="batchProductCode" placeholder="Product code">
+    <input id="batchSets" placeholder="Sets to allocate">
+
+    <textarea id="batchComment"
+      placeholder="Product note (shown to buyers for this batch)"></textarea>
+
+    <button onclick="addProductToBatch()">Add to Batch</button>
+
+    <button class="warn" style="margin-top:14px"
+      onclick="closeCurrentBatch()">
+      Close Batch
+    </button>
+  </div>
+</div>
+
+<!-- RIGHT -->
+<div class="panel">
+  <h3>Current Batch</h3>
+  <div id="batchItems" style="font-size:14px;color:#777">
+    No active batch
+  </div>
+
+  <button style="margin-top:16px" onclick="publishBatch()">
+    Publish Batch
+  </button>
+</div>
+
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const SUPPLIER_ID="SUP001";
+
+let products=[];
+let batchId=null;
+
+/* LOAD PRODUCTS */
+function loadProducts(){
+  fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
+  .then(r=>r.json())
+  .then(j=>{
+    products=j.data||[];
+    renderProducts();
+  });
+}
+
+/* RENDER PRODUCTS */
+function renderProducts(){
+  const q=search.value.toLowerCase();
+  let list=products.filter(p=>
+    String(p.productCode).includes(q) ||
+    p.productName.toLowerCase().includes(q)
+  );
+
+  const sort=document.getElementById("sort").value;
+
+  if(sort==="name"){
+    list.sort((a,b)=>a.productName.localeCompare(b.productName));
+  }else if(sort==="stock"){
+    list.sort((a,b)=>b.allocatable - a.allocatable);
+  }else{
+    list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  }
+
+  productList.innerHTML="";
+  list.forEach(p=>{
+    productList.innerHTML+=`
+      <div class="product">
+        <img src="${p.imageURLs && p.imageURLs.length ? p.imageURLs[0] : ''}">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>Sizes: ${p.sizes.join(", ")}</small>
+          <small>₹${p.pricePerPC}</small>
+          <small>Physical: ${p.physical_stock}</small>
+          <small>Allocated: ${p.allocated_sets}</small>
+          <small class="stock ${p.allocatable>0?'ok':'low'}">
+            Available: ${p.allocatable}
+          </small>
+        </div>
+        <button class="small"
+          onclick="selectForBatch('${p.productCode}')"
+          ${p.allocatable<=0?'disabled':''}>
+          Add
+        </button>
+      </div>`;
+  });
+}
+
+/* SELECT PRODUCT */
+function selectForBatch(code){
+  if(!batchId){ alert("Start batch first"); return; }
+
+  const p=products.find(x=>String(x.productCode)===String(code));
+  batchProductCode.value=code;
+  batchSets.value="";
+  batchComment.value="";
+
+  selectedProductInfo.innerHTML=`
+    <b>${p.productName}</b><br>
+    Sizes: ${p.sizes.join(", ")}<br>
+    Price: ₹${p.pricePerPC}<br>
+    Available: ${p.allocatable} sets
+  `;
+}
+
+/* START BATCH */
+function startBatch(){
+  fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      batchId=j.data.batchId;
+      noBatch.classList.add("hidden");
+      batchRunning.classList.remove("hidden");
+      batchIdText.innerText=batchId;
+      batchTimeText.innerText=new Date().toLocaleString();
+      batchItems.innerHTML="Batch started";
+    });
+}
+
+/* ADD TO BATCH */
+function addProductToBatch(){
+  const code=batchProductCode.value.trim();
+  const sets=Number(batchSets.value);
+  const comment=batchComment.value.trim();
+
+  if(!code||sets<=0) return;
+
+  fetch(`${API}?action=addProductToBatch&batchId=${batchId}&productCode=${code}&totalSets=${sets}&comment=${encodeURIComponent(comment)}`)
+    .then(()=>{ loadBatchItems(); loadProducts(); });
+}
+
+/* LOAD BATCH ITEMS */
+function loadBatchItems(){
+  fetch(`${API}?action=getBatchItems&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      batchItems.innerHTML="";
+      j.data.forEach(p=>{
+        batchItems.innerHTML+=`
+          <div class="product">
+            <img src="${p.imageURLs && p.imageURLs.length ? p.imageURLs[0] : ''}">
+            <div>
+              <b>${p.productCode}</b>
+              <small>${p.productName}</small>
+              <small>Sets: ${p.sets}</small>
+              ${p.comment ? `<small>📝 ${p.comment}</small>` : ""}
+            </div>
+          </div>`;
+      });
+    });
+}
+
+/* CLOSE */
+function closeCurrentBatch(){
+  if(!batchId) return;
+  if(!confirm("Close this batch? Unsold stock will return to godown.")) return;
+
+  fetch(`${API}?action=closeBatch&batchId=${batchId}`)
+    .then(()=>{ batchId=null; batchRunning.classList.add("hidden"); noBatch.classList.remove("hidden"); loadProducts(); batchItems.innerHTML="No active batch"; });
+}
+
+/* PUBLISH */
+function publishBatch(){
+  if(!batchId) return;
+  if(!confirm("Publish this batch to buyers?")) return;
+
+  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
+    .then(()=>{ batchId=null; batchRunning.classList.add("hidden"); noBatch.classList.remove("hidden"); loadProducts(); batchItems.innerHTML="No active batch"; });
+}
+
+loadProducts();
+</script>
+
+</body>
+</html>
