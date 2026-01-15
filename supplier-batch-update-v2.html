@@ -85,10 +85,6 @@ button.warn{background:#c62828}
 }
 
 .hidden{display:none}
-
-@media(max-width:1200px){
-  .products{grid-template-columns:1fr}
-}
 </style>
 </head>
 
@@ -187,13 +183,10 @@ function renderProducts(){
         <div style="flex:1">
           <b>${p.productCode}</b>
           <small>${p.productName}</small>
-          <small>Sizes: ${p.sizes.join(", ")}</small>
           <small>₹${p.pricePerPC}</small>
           <small>Godown: ${p.physicalStock}</small>
           <small>Allocated: ${p.allocatedStock}</small>
-          <small class="stock ${p.allocatable>0?'ok':'low'}">
-            Allocatable: ${p.allocatable}
-          </small>
+          <small class="stock ${p.allocatable>0?'ok':'low'}">Allocatable: ${p.allocatable}</small>
         </div>
         <button class="small" onclick="selectForBatch('${p.productCode}')" ${p.allocatable<=0?'disabled':''}>Add</button>
       </div>`;
@@ -209,9 +202,7 @@ function selectForBatch(code){
   batchComment.value="";
   selectedProductInfo.innerHTML=`
     <b>${p.productName}</b><br>
-    Sizes: ${p.sizes.join(", ")}<br>
-    Price: ₹${p.pricePerPC}<br>
-    Allocatable: ${p.allocatable}
+    Available: ${p.allocatable}
   `;
 }
 
@@ -235,7 +226,7 @@ function addProductToBatch(){
     .then(()=>{ batchProductCode.value=batchSets.value=batchComment.value=""; loadBatchItems(); loadProducts(); });
 }
 
-/* CURRENT */
+/* LOAD BATCH */
 function loadBatchItems(){
   fetch(`${API}?action=getBatchItems&batchId=${batchId}`)
     .then(r=>r.json())
@@ -245,14 +236,27 @@ function loadBatchItems(){
         batchItems.innerHTML+=`
           <div class="product">
             <img src="${p.imageURLs?.[0]||""}">
-            <div>
+            <div style="flex:1">
               <b>${p.productCode}</b>
               <small>${p.productName}</small>
               <small>Sets: ${p.sets}</small>
               ${p.comment?`<small>📝 ${p.comment}</small>`:""}
             </div>
+            <button class="small warn" onclick="removeFromBatch('${p.productCode}')">✖</button>
           </div>`;
       });
+    });
+}
+
+/* REMOVE */
+function removeFromBatch(code){
+  if(!confirm("Remove this product from batch?")) return;
+  fetch(`${API}?action=removeProductFromBatch&batchId=${batchId}&productCode=${code}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+      loadBatchItems();
+      loadProducts();
     });
 }
 
