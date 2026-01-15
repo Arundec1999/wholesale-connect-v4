@@ -118,7 +118,7 @@ function render(){
   );
 
   if(sort.value==="latest"){
-    data.sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+    data.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   }
   if(sort.value==="stockHigh"){
     data.sort((a,b)=>(b.physical_stock||0)-(a.physical_stock||0));
@@ -132,7 +132,7 @@ function render(){
     const stock=p.physical_stock||0;
     list.innerHTML+=`
       <div class="product">
-        <img src="${p.imageURLs?.[0]||""}">
+        <img src="${p.imageURLs && p.imageURLs.length ? p.imageURLs[0] : ''}">
         <div style="flex:1">
           <b>${p.productCode}</b>
           <div>${p.productName}</div>
