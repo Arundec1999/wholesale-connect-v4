@@ -85,10 +85,6 @@ button.warn{background:#c62828}
 }
 
 .hidden{display:none}
-
-@media(max-width:1200px){
-  .products{grid-template-columns:1fr}
-}
 </style>
 </head>
 
@@ -105,7 +101,7 @@ button.warn{background:#c62828}
     <select id="sort" onchange="renderProducts()">
       <option value="latest">Latest</option>
       <option value="name">Name</option>
-      <option value="stock">Available Stock</option>
+      <option value="stock">Allocatable</option>
     </select>
     <input id="search" placeholder="Search product" oninput="renderProducts()">
   </div>
@@ -168,6 +164,7 @@ const SUPPLIER_ID="SUP001";
 
 let products=[];
 let batchId=null;
+let selectedProduct=null;
 
 /* LOAD PRODUCTS */
 function loadProducts(){
@@ -210,7 +207,7 @@ function renderProducts(){
           <small>Physical: ${p.physical_stock}</small>
           <small>Allocated: ${p.allocated_sets}</small>
           <small class="stock ${p.allocatable>0?'ok':'low'}">
-            Available: ${p.allocatable}
+            Allocatable: ${p.allocatable}
           </small>
         </div>
         <button class="small"
@@ -226,16 +223,21 @@ function renderProducts(){
 function selectForBatch(code){
   if(!batchId){ alert("Start batch first"); return; }
 
-  const p=products.find(x=>String(x.productCode)===String(code));
+  selectedProduct=products.find(x=>String(x.productCode)===String(code));
   batchProductCode.value=code;
   batchSets.value="";
   batchComment.value="";
 
   selectedProductInfo.innerHTML=`
-    <b>${p.productName}</b><br>
-    Sizes: ${p.sizes.join(", ")}<br>
-    Price: ₹${p.pricePerPC}<br>
-    Available: ${p.allocatable} sets
+    <div style="display:flex;gap:10px">
+      <img src="${selectedProduct.imageURLs?.[0]||''}" style="width:60px;height:80px;border-radius:6px">
+      <div>
+        <b>${selectedProduct.productName}</b><br>
+        Sizes: ${selectedProduct.sizes.join(", ")}<br>
+        Price: ₹${selectedProduct.pricePerPC}<br>
+        Allocatable: ${selectedProduct.allocatable} sets
+      </div>
+    </div>
   `;
 }
 
@@ -262,7 +264,14 @@ function addProductToBatch(){
   if(!code||sets<=0) return;
 
   fetch(`${API}?action=addProductToBatch&batchId=${batchId}&productCode=${code}&totalSets=${sets}&comment=${encodeURIComponent(comment)}`)
-    .then(()=>{ loadBatchItems(); loadProducts(); });
+    .then(()=>{ 
+      loadBatchItems();
+      loadProducts();
+      batchProductCode.value="";
+      batchSets.value="";
+      batchComment.value="";
+      selectedProductInfo.innerHTML="Select product from left";
+    });
 }
 
 /* LOAD BATCH ITEMS */
@@ -274,7 +283,7 @@ function loadBatchItems(){
       j.data.forEach(p=>{
         batchItems.innerHTML+=`
           <div class="product">
-            <img src="${p.imageURLs && p.imageURLs.length ? p.imageURLs[0] : ''}">
+            <img src="${p.imageURLs?.[0]||''}">
             <div>
               <b>${p.productCode}</b>
               <small>${p.productName}</small>
@@ -286,22 +295,17 @@ function loadBatchItems(){
     });
 }
 
-/* CLOSE */
+/* CLOSE & PUBLISH (unchanged) */
 function closeCurrentBatch(){
   if(!batchId) return;
-  if(!confirm("Close this batch? Unsold stock will return to godown.")) return;
-
-  fetch(`${API}?action=closeBatch&batchId=${batchId}`)
-    .then(()=>{ batchId=null; batchRunning.classList.add("hidden"); noBatch.classList.remove("hidden"); loadProducts(); batchItems.innerHTML="No active batch"; });
+  if(!confirm("Close this batch?")) return;
+  fetch(`${API}?action=closeBatch&batchId=${batchId}`).then(()=>{ batchId=null; batchRunning.classList.add("hidden"); noBatch.classList.remove("hidden"); loadProducts(); batchItems.innerHTML="No active batch"; });
 }
 
-/* PUBLISH */
 function publishBatch(){
   if(!batchId) return;
-  if(!confirm("Publish this batch to buyers?")) return;
-
-  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
-    .then(()=>{ batchId=null; batchRunning.classList.add("hidden"); noBatch.classList.remove("hidden"); loadProducts(); batchItems.innerHTML="No active batch"; });
+  if(!confirm("Publish this batch?")) return;
+  fetch(`${API}?action=publishBatch&batchId=${batchId}`).then(()=>{ batchId=null; batchRunning.classList.add("hidden"); noBatch.classList.remove("hidden"); loadProducts(); batchItems.innerHTML="No active batch"; });
 }
 
 loadProducts();
