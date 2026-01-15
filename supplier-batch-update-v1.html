@@ -85,10 +85,6 @@ button.warn{background:#c62828}
 }
 
 .hidden{display:none}
-
-@media(max-width:1200px){
-  .products{grid-template-columns:1fr}
-}
 </style>
 </head>
 
@@ -144,9 +140,7 @@ button.warn{background:#c62828}
 <!-- RIGHT -->
 <div class="panel">
   <h3>Current Batch</h3>
-  <div id="batchItems" style="font-size:14px;color:#777">
-    No active batch
-  </div>
+  <div id="batchItems" style="font-size:14px;color:#777">No active batch</div>
   <button style="margin-top:16px" onclick="publishBatch()">Publish Batch</button>
 </div>
 
@@ -189,58 +183,44 @@ function renderProducts(){
         <div style="flex:1">
           <b>${p.productCode}</b>
           <small>${p.productName}</small>
-          <small>Sizes: ${p.sizes.join(", ")}</small>
           <small>₹${p.pricePerPC}</small>
-          <small>Godown: ${p.physicalStock}</small>
+          <small>Physical: ${p.physicalStock}</small>
           <small>Allocated: ${p.allocatedStock}</small>
           <small class="stock ${p.allocatable>0?'ok':'low'}">
             Allocatable: ${p.allocatable}
           </small>
         </div>
-        <button class="small"
-          onclick="selectForBatch('${p.productCode}')"
-          ${p.allocatable<=0?'disabled':''}>
-          Add
-        </button>
+        <button class="small" onclick="selectForBatch('${p.productCode}')" ${p.allocatable<=0?'disabled':''}>Add</button>
       </div>`;
   });
 }
 
-/* SELECT PRODUCT */
+/* SELECT */
 function selectForBatch(code){
   if(!batchId){ alert("Start batch first"); return; }
   const p=products.find(x=>String(x.productCode)===String(code));
   batchProductCode.value=code;
   batchSets.value="";
   batchComment.value="";
-  selectedProductInfo.innerHTML=`
-    <b>${p.productName}</b><br>
-    Sizes: ${p.sizes.join(", ")}<br>
-    Price: ₹${p.pricePerPC}<br>
-    Allocatable: ${p.allocatable} sets
-  `;
+  selectedProductInfo.innerHTML=`<b>${p.productName}</b><br>₹${p.pricePerPC}<br>Allocatable: ${p.allocatable}`;
 }
 
 /* START */
 function startBatch(){
   fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
-  .then(r=>r.json())
-  .then(j=>{
+  .then(r=>r.json()).then(j=>{
     batchId=j.data.batchId;
     noBatch.classList.add("hidden");
     batchRunning.classList.remove("hidden");
     batchIdText.innerText=batchId;
     batchTimeText.innerText=new Date().toLocaleString();
-    batchItems.innerHTML="";
+    loadBatchItems();
   });
 }
 
 /* ADD */
 function addProductToBatch(){
-  const code=batchProductCode.value;
-  const sets=batchSets.value;
-  const comment=batchComment.value;
-  fetch(`${API}?action=addProductToBatch&batchId=${batchId}&productCode=${code}&totalSets=${sets}&comment=${encodeURIComponent(comment)}`)
+  fetch(`${API}?action=addProductToBatch&batchId=${batchId}&productCode=${batchProductCode.value}&totalSets=${batchSets.value}&comment=${encodeURIComponent(batchComment.value)}`)
   .then(r=>r.json())
   .then(j=>{
     if(j.status!=="success"){ alert(j.message); return; }
@@ -256,8 +236,7 @@ function addProductToBatch(){
 /* CURRENT */
 function loadBatchItems(){
   fetch(`${API}?action=getBatchItems&batchId=${batchId}`)
-  .then(r=>r.json())
-  .then(j=>{
+  .then(r=>r.json()).then(j=>{
     batchItems.innerHTML="";
     (j.data||[]).forEach(p=>{
       batchItems.innerHTML+=`
@@ -266,10 +245,7 @@ function loadBatchItems(){
           <div style="flex:1">
             <b>${p.productCode}</b>
             <small>${p.productName}</small>
-            <small>Sizes: ${p.sizes.join(", ")}</small>
             <small>Sets: ${p.sets}</small>
-            <small>₹${p.pricePerPC}</small>
-            ${p.comment?`<small>📝 ${p.comment}</small>`:""}
           </div>
           <button class="small warn" onclick="removeFromBatch('${p.productCode}')">✖</button>
         </div>`;
@@ -279,20 +255,21 @@ function loadBatchItems(){
 
 function removeFromBatch(code){
   fetch(`${API}?action=removeProductFromBatch&batchId=${batchId}&productCode=${code}`)
-  .then(()=>{ loadBatchItems(); loadProducts(); });
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){ alert(j.message); return; }
+    loadBatchItems();
+    loadProducts();
+  });
 }
 
 /* PUBLISH */
 function publishBatch(){
-  if(!batchId){ alert("No active batch"); return; }
   if(!confirm("Publish this batch to buyers?")) return;
-  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
-  .then(()=>location.reload());
+  fetch(`${API}?action=publishBatch&batchId=${batchId}`).then(()=>location.reload());
 }
 
-/* INIT */
 loadProducts();
 </script>
-
 </body>
 </html>
