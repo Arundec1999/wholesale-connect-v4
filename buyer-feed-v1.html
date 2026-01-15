@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Buyer – Batch Stock Feed</title>
+<title>Buyer – Stock Feed</title>
 
 <style>
 body{font-family:Arial;background:#f5f5f5;margin:0}
@@ -27,23 +27,22 @@ button{
   border:none;
   cursor:pointer
 }
-.qtyBox{width:60px;padding:4px;margin-top:6px}
+.qty{width:60px;padding:5px;margin-top:6px}
 </style>
 </head>
 
 <body>
 
-<header>Live Batch Stock</header>
+<header>Live Stock Feed</header>
 <div id="feed">Loading…</div>
 
 <script>
-/* ============ CONFIG ============ */
-const API = "https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
-const BUYER_ID = "BUY001";
-const SUPPLIER_ID = "SUP001";
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const BUYER_ID="BUY001";
+const SUPPLIER_ID="SUP001";
 
-/* ============ LOAD FEED ============ */
-fetch(`${API}?action=getActiveBatches&supplierId=${SUPPLIER_ID}`)
+/* Load published batches */
+fetch(`${API}?action=getSupplierUpdates&supplierId=${SUPPLIER_ID}`)
 .then(r=>r.json())
 .then(j=>{
   if(j.status!=="success"){
@@ -53,35 +52,34 @@ fetch(`${API}?action=getActiveBatches&supplierId=${SUPPLIER_ID}`)
   render(j.data||[]);
 });
 
-/* ============ RENDER ============ */
+/* Render feed */
 function render(batches){
   const f=document.getElementById("feed");
   f.innerHTML="";
+
   if(!batches.length){
-    f.innerHTML="<small>No active batches</small>";
+    f.innerHTML="<small>No stock available</small>";
     return;
   }
 
   batches.forEach(b=>{
     const div=document.createElement("div");
     div.className="batch";
-    div.innerHTML=`<small><b>Batch:</b> ${b.batchId}</small><br><small>${new Date(b.batchTime).toLocaleString()}</small>`;
+    div.innerHTML=`<small><b>Batch</b> ${b.batchId} | ${new Date(b.batchTime).toLocaleString()}</small>`;
 
     b.products.forEach(p=>{
       div.innerHTML+=`
         <div class="card">
-          <img src="${p.image||''}">
+          <img src="${p.imageURLs[0]||''}">
           <div>
             <b>${p.productName}</b><br>
             <small>${p.productCode}</small><br>
-            <small>₹${p.price} + ${p.gst}% GST</small><br>
+            <small>₹${p.pricePerPC} + ${p.gstPercent}% GST</small><br>
             <small>Available Sets: <b>${p.availableSets}</b></small><br>
 
-            <input class="qtyBox" id="q_${b.batchId}_${p.productCode}" type="number" min="1" placeholder="Sets">
+            <input class="qty" id="q_${b.batchId}_${p.productCode}" type="number" min="1" placeholder="Sets">
             <br>
-            <button onclick="requestSets('${b.batchId}','${p.productCode}')">
-              Request Sets
-            </button>
+            <button onclick="add('${b.batchId}','${p.productCode}')">Request</button>
           </div>
         </div>
       `;
@@ -91,8 +89,8 @@ function render(batches){
   });
 }
 
-/* ============ REQUEST SETS ============ */
-function requestSets(batchId, productCode){
+/* Add to basket (ledger-safe) */
+function add(batchId,productCode){
   const q=document.getElementById(`q_${batchId}_${productCode}`);
   const sets=Number(q.value);
 
@@ -101,7 +99,7 @@ function requestSets(batchId, productCode){
     return;
   }
 
-  fetch(`${API}?action=createBatchRequest`
+  fetch(`${API}?action=addToBasket`
     + `&buyerId=${BUYER_ID}`
     + `&supplierId=${SUPPLIER_ID}`
     + `&batchId=${batchId}`
@@ -114,7 +112,7 @@ function requestSets(batchId, productCode){
       alert(j.message);
       return;
     }
-    alert("Request submitted to supplier");
+    alert("Request sent to supplier");
     q.value="";
   });
 }
