@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Supplier – Active Batches</title>
+
+<style>
+body{font-family:Arial;background:#f4f5f7;margin:0}
+header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-bottom:1px solid #ddd}
+.batch{background:#fff;margin:14px;border-radius:8px;border:1px solid #ddd}
+.batch h3{
+  margin:0;padding:12px 16px;background:#fafafa;
+  border-bottom:1px solid #eee;
+  display:flex;justify-content:space-between;align-items:center
+}
+.row{
+  display:grid;
+  grid-template-columns:1.6fr 90px 90px 90px 90px 90px 90px;
+  padding:10px 16px;border-top:1px solid #eee;align-items:center;font-size:13px
+}
+.row.head{font-weight:bold;background:#f9f9f9}
+.buyerBox{background:#fafafa;margin:8px 16px 12px;border:1px solid #ddd;border-radius:6px}
+.buyerRow{
+  display:grid;
+  grid-template-columns:120px 90px 90px 90px 240px;
+  padding:6px 10px;font-size:12px;border-top:1px solid #eee;align-items:center
+}
+.buyerRow.head{font-weight:bold;background:#eee}
+input.qty{width:70px;padding:3px}
+button{padding:4px 8px;border:1px solid #aaa;background:#fff;cursor:pointer}
+button[disabled]{background:#eee;color:#aaa}
+</style>
+</head>
+
+<body>
+
+<header>Active Batches</header>
+<div id="batches"></div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+
+const supplierId=localStorage.getItem("supplierId")||prompt("Supplier ID");
+localStorage.setItem("supplierId",supplierId);
+
+function load(){
+ fetch(API+`?action=getSupplierActiveBatches&supplierId=${supplierId}`)
+ .then(r=>r.json()).then(r=>draw(r.data||[]));
+}
+setInterval(load,8000);
+load();
+
+function draw(batches){
+ const wrap=document.getElementById("batches");
+ wrap.innerHTML="";
+
+ batches.forEach(b=>{
+   const div=document.createElement("div");
+   div.className="batch";
+
+   let html=`
+    <h3>
+      Batch ${b.batchId}
+      <button onclick="closeBatch('${b.batchId}')">Close Batch</button>
+    </h3>
+    <div class="row head">
+      <div>Product</div>
+      <div>Physical</div>
+      <div>Allocated</div>
+      <div>Sellable</div>
+      <div>Requested</div>
+      <div>Intent</div>
+      <div>Remaining</div>
+    </div>`;
+
+   b.items.forEach(i=>{
+     html+=`
+      <div class="row">
+        <div>${i.productName}</div>
+        <div>${i.physicalStock}</div>
+        <div>${i.allocatedAllBatches}</div>
+        <div>${i.sellable}</div>
+        <div>${i.requested}</div>
+        <div>${i.supplierIntent}</div>
+        <div>${i.remaining}</div>
+      </div>
+      <div id="buyers-${b.batchId}-${i.productCode}"></div>`;
+   });
+
+   div.innerHTML=html;
+   wrap.appendChild(div);
+
+   b.items.forEach(i=>{
+     loadBuyers(b.batchId,i.productCode);
+   });
+ });
+}
+
+function loadBuyers(batch,code){
+ fetch(API+`?action=getReservationsForBatchProduct&batchId=${batch}&productCode=${code}`)
+ .then(r=>r.json()).then(r=>{
+   const box=document.getElementById(`buyers-${batch}-${code}`);
+   if(!r.data.length){ box.innerHTML=""; return; }
+
+   let h=`<div class="buyerBox">
+     <div class="buyerRow head">
+       <div>Buyer</div><div>Requested</div><div>Intent</div><div>Approved</div><div>Action</div>
+     </div>`;
+
+   r.data.forEach(b=>{
+     const disabled = b.status!=="OPEN" ? "disabled" : "";
+     h+=`
+      <div class="buyerRow">
+        <div>${b.buyerId}</div>
+        <div>${b.requestedSets}</div>
+        <div><input class="qty" ${disabled} id="i-${b.basketId}-${code}" value="${b.supplierIntent||b.requestedSets}"></div>
+        <div>${b.approvedSets}</div>
+        <div>
+          <button ${disabled} onclick="updateIntent('${b.basketId}','${code}')">Update</button>
+          <button ${disabled} onclick="reject('${b.basketId}','${code}')">Reject</button>
+        </div>
+      </div>`;
+   });
+
+   box.innerHTML=h+"</div>";
+ });
+}
+
+function updateIntent(basket,code){
+ const v=document.getElementById(`i-${basket}-${code}`).value;
+ fetch(API+`?action=updateSupplierIntent&basketId=${basket}&productCode=${code}&sets=${v}`)
+ .then(load);
+}
+
+function reject(basket,code){
+ if(!confirm("Reject this buyer line?")) return;
+ fetch(API+`?action=rejectBasketItem&basketId=${basket}&productCode=${code}`)
+ .then(load);
+}
+
+function closeBatch(id){
+ if(!confirm("Close this batch?")) return;
+ fetch(API+`?action=closeBatch&batchId=${id}`).then(load);
+}
+</script>
+
+</body>
+</html>
