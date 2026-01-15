@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Product Master</title>
+
+<style>
+body{font-family:Arial;background:#f4f5f7;margin:0}
+header{background:#fff;padding:16px;border-bottom:1px solid #ddd;font-size:20px;font-weight:600}
+.container{display:flex;gap:20px;padding:20px}
+
+.left{width:360px;background:#fff;padding:16px;border-radius:10px}
+.right{flex:1;background:#fff;padding:16px;border-radius:10px}
+
+input,textarea{
+  width:100%;
+  padding:9px;
+  margin:6px 0 12px;
+  border:1px solid #ccc;
+  border-radius:6px;
+}
+
+button{
+  background:#000;color:#fff;
+  border:none;border-radius:6px;
+  padding:8px 12px;
+  cursor:pointer
+}
+
+.products{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:14px
+}
+
+.product{
+  display:flex;gap:12px;
+  padding:12px;border:1px solid #e5e5e5;
+  border-radius:10px
+}
+
+.stock{font-weight:600;margin-top:4px}
+.ok{color:#2e7d32}
+.low{color:#c62828}
+</style>
+</head>
+
+<body>
+
+<header>PRODUCT MASTER</header>
+
+<div class="container">
+
+<div class="left">
+<h3 id="formTitle">Add Product</h3>
+
+<input id="pCode" placeholder="Product Code">
+<input id="pName" placeholder="Product Name">
+<textarea id="pDesc" placeholder="Description"></textarea>
+<input id="pSizes" placeholder="PCS per Set (e.g. 3)">
+<input id="pPrice" placeholder="Price per PC">
+<input id="pGST" placeholder="GST %">
+<input id="pStock" placeholder="Physical Godown Stock (sets)">
+<input id="pImages" placeholder="Image URLs (comma separated)">
+
+<button onclick="saveProduct()">Save Product</button>
+</div>
+
+<div class="right">
+<div id="list" class="products">Loading…</div>
+</div>
+
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const SUPPLIER_ID=localStorage.getItem("supplierId")||"SUP1";
+
+let products=[];
+let editing=null;
+
+function load(){
+ fetch(`${API}?action=getProductStockSummary&supplierId=${SUPPLIER_ID}`)
+ .then(r=>r.json()).then(j=>{
+   products=j.data||[];
+   render();
+ });
+}
+load();
+
+function render(){
+ list.innerHTML="";
+ products.forEach(p=>{
+   list.innerHTML+=`
+    <div class="product">
+      <div>
+        <b>${p.productCode}</b><br>${p.productName}
+        <div class="stock">Physical: ${p.masterStock}</div>
+        <div>Allocated: ${p.allocatedStock}</div>
+        <div class="stock ${p.availableToAllocate>0?'ok':'low'}">
+          Allocatable: ${p.availableToAllocate}
+        </div>
+        <button onclick="edit('${p.productCode}')">Edit</button>
+      </div>
+    </div>`;
+ });
+}
+
+function edit(code){
+ const p=products.find(x=>x.productCode==code);
+ if(!p) return;
+ editing=code;
+
+ pCode.value=p.productCode;
+ pCode.disabled=true;
+ pName.value=p.productName;
+ pStock.value=p.masterStock;
+}
+
+function saveProduct(){
+ const payload =
+ `&supplierId=${SUPPLIER_ID}`+
+ `&productCode=${pCode.value}`+
+ `&productName=${pName.value}`+
+ `&masterStock=${pStock.value}`;
+
+ const action=editing?"updateProduct":"addProduct";
+
+ fetch(API+`?action=${action}${payload}`)
+ .then(r=>r.json()).then(j=>{
+   if(j.status!=="success") alert(j.message);
+   else{
+     editing=null;
+     pCode.disabled=false;
+     pCode.value=pName.value=pStock.value="";
+     load();
+   }
+ });
+}
+</script>
+
+</body>
+</html>
