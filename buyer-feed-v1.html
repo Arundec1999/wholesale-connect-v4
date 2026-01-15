@@ -46,11 +46,14 @@ fetch(`${API}?action=getSupplierUpdates&supplierId=${SUPPLIER_ID}`)
 .then(r=>r.json())
 .then(j=>{
   if(j.status!=="success"){
-    document.getElementById("feed").innerText=j.message;
+    alert(j.message);
     return;
   }
-  render(j.data||[]);
+  alert("Request sent to supplier");
+  q.value="";
+  reloadFeed();   // 🔥 refresh sellable numbers
 });
+
 
 /* Render feed */
 function render(batches){
