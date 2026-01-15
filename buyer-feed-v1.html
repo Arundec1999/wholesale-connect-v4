@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Buyer – Batch Stock Feed</title>
+
+<style>
+body{font-family:Arial;background:#f5f5f5;margin:0}
+header{background:#fff;padding:12px;border-bottom:1px solid #ddd;font-weight:bold}
+.batch{padding:12px}
+.card{
+  background:#fff;
+  padding:10px;
+  margin-top:8px;
+  display:flex;
+  gap:10px;
+  border-radius:6px;
+  border:1px solid #ddd
+}
+img{width:70px;height:90px;object-fit:cover;border-radius:4px}
+small{color:#555}
+button{
+  margin-top:6px;
+  padding:6px 10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer
+}
+.qtyBox{width:60px;padding:4px;margin-top:6px}
+</style>
+</head>
+
+<body>
+
+<header>Live Batch Stock</header>
+<div id="feed">Loading…</div>
+
+<script>
+/* ============ CONFIG ============ */
+const API = "https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const BUYER_ID = "BUY001";
+const SUPPLIER_ID = "SUP001";
+
+/* ============ LOAD FEED ============ */
+fetch(`${API}?action=getActiveBatches&supplierId=${SUPPLIER_ID}`)
+.then(r=>r.json())
+.then(j=>{
+  if(j.status!=="success"){
+    document.getElementById("feed").innerText=j.message;
+    return;
+  }
+  render(j.data||[]);
+});
+
+/* ============ RENDER ============ */
+function render(batches){
+  const f=document.getElementById("feed");
+  f.innerHTML="";
+  if(!batches.length){
+    f.innerHTML="<small>No active batches</small>";
+    return;
+  }
+
+  batches.forEach(b=>{
+    const div=document.createElement("div");
+    div.className="batch";
+    div.innerHTML=`<small><b>Batch:</b> ${b.batchId}</small><br><small>${new Date(b.batchTime).toLocaleString()}</small>`;
+
+    b.products.forEach(p=>{
+      div.innerHTML+=`
+        <div class="card">
+          <img src="${p.image||''}">
+          <div>
+            <b>${p.productName}</b><br>
+            <small>${p.productCode}</small><br>
+            <small>₹${p.price} + ${p.gst}% GST</small><br>
+            <small>Available Sets: <b>${p.availableSets}</b></small><br>
+
+            <input class="qtyBox" id="q_${b.batchId}_${p.productCode}" type="number" min="1" placeholder="Sets">
+            <br>
+            <button onclick="requestSets('${b.batchId}','${p.productCode}')">
+              Request Sets
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    f.appendChild(div);
+  });
+}
+
+/* ============ REQUEST SETS ============ */
+function requestSets(batchId, productCode){
+  const q=document.getElementById(`q_${batchId}_${productCode}`);
+  const sets=Number(q.value);
+
+  if(!sets || sets<=0){
+    alert("Enter valid sets");
+    return;
+  }
+
+  fetch(`${API}?action=createBatchRequest`
+    + `&buyerId=${BUYER_ID}`
+    + `&supplierId=${SUPPLIER_ID}`
+    + `&batchId=${batchId}`
+    + `&productCode=${productCode}`
+    + `&sets=${sets}`
+  )
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){
+      alert(j.message);
+      return;
+    }
+    alert("Request submitted to supplier");
+    q.value="";
+  });
+}
+</script>
+
+</body>
+</html>
