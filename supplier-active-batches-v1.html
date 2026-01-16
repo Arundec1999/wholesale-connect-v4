@@ -44,16 +44,27 @@ button[disabled]{background:#aaa}
 
 <script>
 const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
-let supplierId=localStorage.getItem("supplierId")||prompt("Enter Supplier ID");
-localStorage.setItem("supplierId",supplierId);
+let supplierId = localStorage.getItem("supplierId") || prompt("Enter Supplier ID");
+localStorage.setItem("supplierId", supplierId);
 
 /* ================= LOAD ================= */
 
 function load(){
-  fetch(`${API}?action=getSupplierActiveBatches&supplierId=${supplierId}`)
+  fetch(`${API}?action=getSupplierActiveBatches&supplierId=${encodeURIComponent(supplierId)}`)
   .then(r=>r.json())
-  .then(j=>render(j.data||[]));
+  .then(j=>{
+    if(j.status !== "success"){
+      document.getElementById("batches").innerText = j.message || "Failed to load";
+      return;
+    }
+    render(j.data || []);
+  })
+  .catch(err=>{
+    document.getElementById("batches").innerText = "Network error";
+    console.error(err);
+  });
 }
+
 load();
 
 /* ================= RENDER ================= */
@@ -62,9 +73,15 @@ function render(batches){
   const wrap=document.getElementById("batches");
   wrap.innerHTML="";
 
+  if(!batches.length){
+    wrap.innerHTML="<small>No active batches</small>";
+    return;
+  }
+
   batches.forEach(b=>{
     const block=document.createElement("div");
     block.className="batch";
+
     block.innerHTML=`
       <h3>Batch ${b.batchId}</h3>
       <div class="row head">
@@ -76,18 +93,19 @@ function render(batches){
       </div>
     `;
 
-    b.items.forEach(i=>{
+    (b.items || []).forEach(i=>{
       block.innerHTML+=`
         <div class="row">
-          <div><b>${i.productCode}</b><br>${i.productName}</div>
-          <div>${i.totalSets}</div>
-          <div>${i.approvedSets}</div>
-          <div>${i.requestedSets}</div>
-          <div><b>${i.availableSets}</b></div>
+          <div><b>${i.productCode || ""}</b><br>${i.productName || ""}</div>
+          <div>${i.totalSets || 0}</div>
+          <div>${i.approvedSets || 0}</div>
+          <div>${i.requestedSets || 0}</div>
+          <div><b>${i.availableSets || 0}</b></div>
         </div>
         <div id="buyers-${b.batchId}-${i.productCode}"></div>
       `;
-      loadBuyers(b.batchId,i.productCode);
+
+      loadBuyers(b.batchId, i.productCode);
     });
 
     wrap.appendChild(block);
@@ -97,11 +115,19 @@ function render(batches){
 /* ================= BUYER ROWS ================= */
 
 function loadBuyers(batchId, productCode){
-  fetch(`${API}?action=getBuyerRequestsForBatchProduct&batchId=${batchId}&productCode=${productCode}`)
+  fetch(`${API}?action=getBuyerRequestsForBatchProduct`
+    + `&batchId=${encodeURIComponent(batchId)}`
+    + `&productCode=${encodeURIComponent(productCode)}`
+  )
   .then(r=>r.json())
   .then(j=>{
+    if(j.status !== "success") return;
+
     const div=document.getElementById(`buyers-${batchId}-${productCode}`);
-    if(!j.data.length){ div.innerHTML=""; return; }
+    if(!div || !j.data || !j.data.length){
+      if(div) div.innerHTML="";
+      return;
+    }
 
     let h=`<div class="buyerBox">
       <div class="buyerRow head">
@@ -119,8 +145,10 @@ function loadBuyers(batchId, productCode){
           <div>${b.buyerId}</div>
           <div>${b.requestedSets}</div>
           <div>
-            <input class="qty" id="i-${b.basketId}-${productCode}"
-                   value="${b.intentSets}" ${disabled}>
+            <input class="qty"
+              id="i-${b.basketId}-${productCode}"
+              value="${b.intentSets}"
+              ${disabled}>
           </div>
           <div>${b.approvedSets}</div>
           <div>
@@ -132,23 +160,23 @@ function loadBuyers(batchId, productCode){
         </div>`;
     });
 
-    div.innerHTML=h+"</div>";
+    div.innerHTML = h + "</div>";
   });
 }
 
 /* ================= ACTION ================= */
 
 function saveIntent(basketId, productCode){
-  const v=document.getElementById(`i-${basketId}-${productCode}`).value;
+  const v = document.getElementById(`i-${basketId}-${productCode}`).value;
 
   fetch(`${API}?action=updateSupplierIntent`
-    + `&basketId=${basketId}`
-    + `&productCode=${productCode}`
-    + `&sets=${v}`
+    + `&basketId=${encodeURIComponent(basketId)}`
+    + `&productCode=${encodeURIComponent(productCode)}`
+    + `&sets=${encodeURIComponent(v)}`
   )
   .then(r=>r.json())
   .then(j=>{
-    if(j.status!=="success"){
+    if(j.status !== "success"){
       alert(j.message);
       return;
     }
