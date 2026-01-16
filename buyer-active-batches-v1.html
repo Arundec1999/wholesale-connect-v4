@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Buyer – Active Batches</title>
+
+<style>
+body{font-family:Arial;background:#f5f5f5;margin:0}
+header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-bottom:1px solid #ddd}
+
+.batch{background:#fff;margin:14px;border-radius:8px;border:1px solid #ddd}
+.batch h3{
+  margin:0;padding:12px 16px;background:#fafafa;
+  border-bottom:1px solid #eee
+}
+
+.row{
+  display:grid;
+  grid-template-columns:2fr 120px 120px;
+  padding:10px 16px;
+  border-top:1px solid #eee;
+  font-size:13px;
+  align-items:center
+}
+.row.head{font-weight:bold;background:#f9f9f9}
+
+.buyerBox{background:#fafafa;margin:6px 16px 12px;border:1px solid #ddd;border-radius:6px}
+.buyerRow{
+  display:grid;
+  grid-template-columns:120px 120px 120px;
+  padding:6px 10px;
+  font-size:12px;
+  border-top:1px solid #eee
+}
+.buyerRow.head{font-weight:bold;background:#eee}
+
+.badge{padding:2px 6px;border-radius:4px;font-size:11px}
+.OPEN{background:#f1c40f}
+.APPROVED{background:#2ecc71;color:#fff}
+.REJECTED{background:#e74c3c;color:#fff}
+</style>
+</head>
+
+<body>
+
+<header>Active Batches</header>
+<div id="batches">Loading…</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const BUYER_ID = localStorage.getItem("buyerId") || prompt("Enter Buyer ID");
+localStorage.setItem("buyerId", BUYER_ID);
+
+/* ================= LOAD ================= */
+
+function load(){
+  fetch(`${API}?action=getSupplierUpdates&supplierId=SUP001`)
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){
+      document.getElementById("batches").innerText=j.message;
+      return;
+    }
+    render(j.data||[]);
+  });
+}
+load();
+
+/* ================= RENDER ================= */
+
+function render(batches){
+  const wrap=document.getElementById("batches");
+  wrap.innerHTML="";
+
+  if(!batches.length){
+    wrap.innerHTML="<small>No active batches</small>";
+    return;
+  }
+
+  batches.forEach(b=>{
+    const block=document.createElement("div");
+    block.className="batch";
+
+    block.innerHTML=`<h3>Batch ${b.batchId}</h3>
+      <div class="row head">
+        <div>Product</div>
+        <div>Total Requested</div>
+        <div>Sellable</div>
+      </div>`;
+
+    b.products.forEach(p=>{
+      block.innerHTML+=`
+        <div class="row">
+          <div><b>${p.productCode}</b><br>${p.productName}</div>
+          <div>${p.totalRequested || 0}</div>
+          <div><b>${p.availableSets}</b></div>
+        </div>
+        <div id="buyers-${b.batchId}-${p.productCode}"></div>
+      `;
+      loadBuyers(b.batchId,p.productCode);
+    });
+
+    wrap.appendChild(block);
+  });
+}
+
+/* ================= BUYER LIST ================= */
+
+function loadBuyers(batchId, productCode){
+  fetch(`${API}?action=getBuyerRequestsForBatchProduct&batchId=${batchId}&productCode=${productCode}`)
+  .then(r=>r.json())
+  .then(j=>{
+    const div=document.getElementById(`buyers-${batchId}-${productCode}`);
+    if(!j.data.length){ div.innerHTML=""; return; }
+
+    let h=`<div class="buyerBox">
+      <div class="buyerRow head">
+        <div>Buyer</div><div>Requested</div><div>Status</div>
+      </div>`;
+
+    j.data.forEach(b=>{
+      h+=`
+        <div class="buyerRow">
+          <div>${b.buyerId}</div>
+          <div>${b.requestedSets}</div>
+          <div><span class="badge ${b.status}">${b.status}</span></div>
+        </div>`;
+    });
+
+    div.innerHTML=h+"</div>";
+  });
+}
+</script>
+
+</body>
+</html>
