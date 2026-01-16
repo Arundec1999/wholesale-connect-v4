@@ -6,44 +6,89 @@
 
 <style>
 body{font-family:Arial;background:#f4f5f7;margin:0}
-header{background:#fff;padding:14px 18px;font-size:18px;font-weight:600;border-bottom:1px solid #ddd}
+header{
+  background:#fff;
+  padding:14px 18px;
+  font-size:18px;
+  font-weight:600;
+  border-bottom:1px solid #ddd
+}
 
-.batch{background:#fff;margin:14px;border-radius:8px;border:1px solid #ddd}
+.batch{
+  background:#fff;
+  margin:14px;
+  border-radius:8px;
+  border:1px solid #ddd
+}
 .batch h3{
-  margin:0;padding:12px 16px;background:#fafafa;
+  margin:0;
+  padding:12px 16px;
+  background:#fafafa;
   border-bottom:1px solid #eee
 }
 
 .row{
   display:grid;
   grid-template-columns:2fr 90px 90px 120px 120px;
-  padding:10px 16px;border-top:1px solid #eee;
-  font-size:13px;align-items:center
+  padding:10px 16px;
+  border-top:1px solid #eee;
+  font-size:13px;
+  align-items:center
 }
-.row.head{font-weight:bold;background:#f9f9f9}
+.row.head{
+  font-weight:bold;
+  background:#f9f9f9
+}
 
-.buyerBox{background:#fafafa;margin:6px 16px 12px;border:1px solid #ddd;border-radius:6px}
+.buyerBox{
+  background:#fafafa;
+  margin:6px 16px 12px;
+  border:1px solid #ddd;
+  border-radius:6px
+}
 .buyerRow{
   display:grid;
-  grid-template-columns:120px 90px 90px 90px 120px;
-  padding:6px 10px;font-size:12px;border-top:1px solid #eee;align-items:center
+  grid-template-columns:120px 90px 90px 90px 200px;
+  padding:6px 10px;
+  font-size:12px;
+  border-top:1px solid #eee;
+  align-items:center
 }
-.buyerRow.head{font-weight:bold;background:#eee}
+.buyerRow.head{
+  font-weight:bold;
+  background:#eee
+}
 
-input.qty{width:60px;padding:4px}
-button{padding:4px 8px;background:#000;color:#fff;border:none;cursor:pointer}
-button[disabled]{background:#aaa}
-.note{font-size:12px;color:#c0392b;margin:4px 16px}
+input.qty{
+  width:60px;
+  padding:4px
+}
+button{
+  padding:4px 8px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  margin-right:4px
+}
+button.reject{
+  background:#c0392b
+}
+button[disabled]{
+  background:#aaa;
+  cursor:not-allowed
+}
 </style>
 </head>
 
 <body>
 
-<header>Active Batches – Supplier Intent</header>
+<header>Active Batches – Supplier Control</header>
 <div id="batches">Loading…</div>
 
 <script>
-const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const API = "https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+
 let supplierId = localStorage.getItem("supplierId") || prompt("Enter Supplier ID");
 localStorage.setItem("supplierId", supplierId);
 
@@ -60,8 +105,8 @@ function load(){
     render(j.data || []);
   })
   .catch(err=>{
-    document.getElementById("batches").innerText = "Network error";
     console.error(err);
+    document.getElementById("batches").innerText = "Network error";
   });
 }
 
@@ -70,19 +115,19 @@ load();
 /* ================= RENDER ================= */
 
 function render(batches){
-  const wrap=document.getElementById("batches");
-  wrap.innerHTML="";
+  const wrap = document.getElementById("batches");
+  wrap.innerHTML = "";
 
   if(!batches.length){
-    wrap.innerHTML="<small>No active batches</small>";
+    wrap.innerHTML = "<small>No active batches</small>";
     return;
   }
 
   batches.forEach(b=>{
-    const block=document.createElement("div");
-    block.className="batch";
+    const block = document.createElement("div");
+    block.className = "batch";
 
-    block.innerHTML=`
+    block.innerHTML = `
       <h3>Batch ${b.batchId}</h3>
       <div class="row head">
         <div>Product</div>
@@ -94,9 +139,9 @@ function render(batches){
     `;
 
     (b.items || []).forEach(i=>{
-      block.innerHTML+=`
+      block.innerHTML += `
         <div class="row">
-          <div><b>${i.productCode || ""}</b><br>${i.productName || ""}</div>
+          <div><b>${i.productCode}</b><br>${i.productName || ""}</div>
           <div>${i.totalSets || 0}</div>
           <div>${i.approvedSets || 0}</div>
           <div>${i.requestedSets || 0}</div>
@@ -104,7 +149,6 @@ function render(batches){
         </div>
         <div id="buyers-${b.batchId}-${i.productCode}"></div>
       `;
-
       loadBuyers(b.batchId, i.productCode);
     });
 
@@ -123,24 +167,26 @@ function loadBuyers(batchId, productCode){
   .then(j=>{
     if(j.status !== "success") return;
 
-    const div=document.getElementById(`buyers-${batchId}-${productCode}`);
+    const div = document.getElementById(`buyers-${batchId}-${productCode}`);
     if(!div || !j.data || !j.data.length){
-      if(div) div.innerHTML="";
+      if(div) div.innerHTML = "";
       return;
     }
 
-    let h=`<div class="buyerBox">
-      <div class="buyerRow head">
-        <div>Buyer</div>
-        <div>Requested</div>
-        <div>Intent</div>
-        <div>Approved</div>
-        <div>Action</div>
-      </div>`;
+    let h = `
+      <div class="buyerBox">
+        <div class="buyerRow head">
+          <div>Buyer</div>
+          <div>Requested</div>
+          <div>Intent</div>
+          <div>Approved</div>
+          <div>Action</div>
+        </div>
+    `;
 
     j.data.forEach(b=>{
       const disabled = b.status !== "OPEN" ? "disabled" : "";
-      h+=`
+      h += `
         <div class="buyerRow">
           <div>${b.buyerId}</div>
           <div>${b.requestedSets}</div>
@@ -156,15 +202,24 @@ function loadBuyers(batchId, productCode){
               onclick="saveIntent('${b.basketId}','${productCode}')">
               Save
             </button>
+            <button ${disabled}
+              onclick="approve('${b.basketId}')">
+              Approve
+            </button>
+            <button class="reject" ${disabled}
+              onclick="reject('${b.basketId}','${batchId}','${productCode}')">
+              Reject
+            </button>
           </div>
-        </div>`;
+        </div>
+      `;
     });
 
     div.innerHTML = h + "</div>";
   });
 }
 
-/* ================= ACTION ================= */
+/* ================= ACTIONS ================= */
 
 function saveIntent(basketId, productCode){
   const v = document.getElementById(`i-${basketId}-${productCode}`).value;
@@ -180,6 +235,34 @@ function saveIntent(basketId, productCode){
       alert(j.message);
       return;
     }
+    load();
+  });
+}
+
+function approve(basketId){
+  if(!confirm("Approve this buyer and lock stock?")) return;
+
+  fetch(`${API}?action=approveBasket&basketId=${encodeURIComponent(basketId)}`)
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status !== "success"){
+      alert(j.message);
+      return;
+    }
+    load();
+  });
+}
+
+function reject(basketId, batchId, productCode){
+  if(!confirm("Reject buyer request?")) return;
+
+  fetch(`${API}?action=rejectBasketItem`
+    + `&basketId=${encodeURIComponent(basketId)}`
+    + `&batchId=${encodeURIComponent(batchId)}`
+    + `&productCode=${encodeURIComponent(productCode)}`
+  )
+  .then(r=>r.json())
+  .then(()=>{
     load();
   });
 }
