@@ -76,6 +76,8 @@ function render(batches){
     div.innerHTML=`<small><b>Batch</b> ${b.batchId} | ${new Date(b.batchTime).toLocaleString()}</small>`;
 
     b.products.forEach(p=>{
+      const sizes = p.sizes || [];
+
       div.innerHTML+=`
         <div class="card">
           <img src="${p.imageURLs[0]||''}">
@@ -83,11 +85,19 @@ function render(batches){
             <b>${p.productName}</b><br>
             <small>${p.productCode}</small><br>
             <small>₹${p.pricePerPC} + ${p.gstPercent}% GST</small><br>
+            <small>Sizes in set: ${sizes.join(", ")}</small><br>
             <small>Available Sets: <b>${p.availableSets}</b></small><br>
 
-            <input class="qty" id="q_${b.batchId}_${p.productCode}" type="number" min="1" placeholder="Sets">
+            <input class="qty"
+              id="q_${b.batchId}_${p.productCode}"
+              type="number" min="1" placeholder="Sets">
+
             <br>
-            <button onclick="add('${b.batchId}','${p.productCode}')">Request</button>
+            <button onclick='add(
+              "${b.batchId}",
+              "${p.productCode}",
+              ${JSON.stringify(sizes)}
+            )'>Request</button>
           </div>
         </div>
       `;
@@ -100,11 +110,12 @@ function render(batches){
 
 /* ================= ADD REQUEST ================= */
 
-function add(batchId,productCode){
-  const q=document.getElementById(`q_${batchId}_${productCode}`);
-  const sets=Number(q.value);
+function add(batchId, productCode, sizes){
 
-  if(!sets || sets<=0){
+  const q = document.getElementById(`q_${batchId}_${productCode}`);
+  const sets = Number(q.value);
+
+  if(!sets || sets <= 0){
     alert("Enter valid sets");
     return;
   }
@@ -115,14 +126,15 @@ function add(batchId,productCode){
     + `&batchId=${batchId}`
     + `&productCode=${productCode}`
     + `&sets=${sets}`
+    + `&sizeJSON=${encodeURIComponent(JSON.stringify(sizes))}`
   )
   .then(r=>r.json())
   .then(j=>{
-    if(j.status!=="success"){
+    if(j.status !== "success"){
       alert(j.message);
       return;
     }
-    q.value="";
+    q.value = "";
     reloadFeed();   // 🔥 live sellable refresh
   });
 }
