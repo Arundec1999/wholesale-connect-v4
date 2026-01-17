@@ -74,9 +74,11 @@ button{
 button.reject{
   background:#c0392b
 }
+input[disabled],
 button[disabled]{
   background:#aaa;
-  cursor:not-allowed
+  cursor:not-allowed;
+  opacity:0.6
 }
 </style>
 </head>
@@ -104,8 +106,7 @@ function load(){
     }
     render(j.data || []);
   })
-  .catch(err=>{
-    console.error(err);
+  .catch(()=>{
     document.getElementById("batches").innerText = "Network error";
   });
 }
@@ -161,15 +162,14 @@ function render(batches){
 function loadBuyers(batchId, productCode){
   fetch(`${API}?action=getBuyerRequestsForBatchProduct`
     + `&batchId=${encodeURIComponent(batchId)}`
-    + `&productCode=${encodeURIComponent(productCode)}`
-  )
+    + `&productCode=${encodeURIComponent(productCode)}`)
   .then(r=>r.json())
   .then(j=>{
     if(j.status !== "success") return;
 
     const div = document.getElementById(`buyers-${batchId}-${productCode}`);
     if(!div || !j.data || !j.data.length){
-      if(div) div.innerHTML = "";
+      div.innerHTML = "";
       return;
     }
 
@@ -185,7 +185,12 @@ function loadBuyers(batchId, productCode){
     `;
 
     j.data.forEach(b=>{
-      const disabled = b.status !== "OPEN" ? "disabled" : "";
+      const isLocked =
+        Number(b.approvedSets) > 0 ||
+        b.status !== "OPEN";
+
+      const disabled = isLocked ? "disabled" : "";
+
       h += `
         <div class="buyerRow">
           <div>${b.buyerId}</div>
@@ -227,8 +232,7 @@ function saveIntent(basketId, productCode){
   fetch(`${API}?action=updateSupplierIntent`
     + `&basketId=${encodeURIComponent(basketId)}`
     + `&productCode=${encodeURIComponent(productCode)}`
-    + `&sets=${encodeURIComponent(v)}`
-  )
+    + `&sets=${encodeURIComponent(v)}`)
   .then(r=>r.json())
   .then(j=>{
     if(j.status !== "success"){
@@ -245,11 +249,10 @@ function approve(basketId, batchId, productCode){
   fetch(`${API}?action=approveBasketItem`
     + `&basketId=${encodeURIComponent(basketId)}`
     + `&batchId=${encodeURIComponent(batchId)}`
-    + `&productCode=${encodeURIComponent(productCode)}`
-  )
+    + `&productCode=${encodeURIComponent(productCode)}`)
   .then(r=>r.json())
   .then(j=>{
-    if(j.status!=="success"){
+    if(j.status !== "success"){
       alert(j.message);
       return;
     }
@@ -263,12 +266,8 @@ function reject(basketId, batchId, productCode){
   fetch(`${API}?action=rejectBasketItem`
     + `&basketId=${encodeURIComponent(basketId)}`
     + `&batchId=${encodeURIComponent(batchId)}`
-    + `&productCode=${encodeURIComponent(productCode)}`
-  )
-  .then(r=>r.json())
-  .then(()=>{
-    load();
-  });
+    + `&productCode=${encodeURIComponent(productCode)}`)
+  .then(()=>load());
 }
 </script>
 
