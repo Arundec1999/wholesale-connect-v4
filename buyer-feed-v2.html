@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Buyer – Stock Feed</title>
+
+<style>
+body{font-family:Arial;background:#f5f5f5;margin:0}
+header{background:#fff;padding:12px;border-bottom:1px solid #ddd;font-weight:bold}
+
+.batch{padding:12px}
+
+.card{
+  background:#fff;
+  padding:10px;
+  margin-top:8px;
+  display:flex;
+  gap:10px;
+  border-radius:6px;
+  border:1px solid #ddd
+}
+
+img{
+  width:70px;
+  height:90px;
+  object-fit:cover;
+  border-radius:4px
+}
+
+small{color:#555}
+
+button{
+  margin-top:6px;
+  padding:6px 10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer
+}
+
+button[disabled]{
+  background:#aaa;
+  cursor:not-allowed
+}
+
+.qty{
+  width:60px;
+  padding:5px;
+  margin-top:6px
+}
+</style>
+</head>
+
+<body>
+
+<header>Live Stock Feed</header>
+<div id="feed">Loading…</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const BUYER_ID="BUY001";
+const SUPPLIER_ID="SUP001";
+
+/* ================= LOAD FEED ================= */
+
+function reloadFeed(){
+  fetch(`${API}?action=getSupplierUpdates&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){
+        feed.innerText=j.message;
+        return;
+      }
+      render(j.data||[]);
+    })
+    .catch(()=>feed.innerText="Network error");
+}
+
+reloadFeed();
+
+/* ================= RENDER ================= */
+
+function render(batches){
+  const f=document.getElementById("feed");
+  f.innerHTML="";
+
+  if(!batches.length){
+    f.innerHTML="<small>No stock available</small>";
+    return;
+  }
+
+  batches.forEach(batch=>{
+    const div=document.createElement("div");
+    div.className="batch";
+
+    div.innerHTML=`
+      <small>
+        <b>Batch</b> ${batch.batchId}
+        | ${new Date(batch.batchTime).toLocaleString()}
+      </small>
+    `;
+
+    batch.products.forEach(p=>{
+      const sizes = p.sizes || [];
+      const available = Number(p.availableSets)||0;
+      const disabled = available <= 0 ? "disabled" : "";
+
+      const inputId = `q_${batch.batchId}_${p.productCode}`;
+
+      div.innerHTML+=`
+        <div class="card">
+          <img src="${p.imageURLs?.[0]||''}">
+          <div>
+            <b>${p.productName}</b><br>
+            <small>${p.productCode}</small><br>
+            <small>₹${p.pricePerPC} + ${p.gstPercent}% GST</small><br>
+            <small>Sizes in set: ${sizes.join(", ")}</small><br>
+            <small>
+              Available Sets:
+              <b>${available}</b>
+            </small><br>
+
+            <input class="qty"
+              id="${inputId}"
+              type="number"
+              min="1"
+              max="${available}"
+              placeholder="Sets"
+              ${disabled}>
+
+            <br>
+
+            <button ${disabled}
+              onclick='add(
+                "${batch.batchId}",
+                "${p.productCode}",
+                ${JSON.stringify(sizes)}
+              )'>
+              Request
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    f.appendChild(div);
+  });
+}
+
+/* ================= ADD REQUEST ================= */
+
+function add(batchId, productCode, sizes){
+
+  const inputId = `q_${batchId}_${productCode}`;
+  const q = document.getElementById(inputId);
+  const sets = Number(q.value);
+
+  if(!sets || sets <= 0){
+    alert("Enter valid sets");
+    return;
+  }
+
+  fetch(`${API}?action=addToBasket`
+    + `&buyerId=${BUYER_ID}`
+    + `&supplierId=${SUPPLIER_ID}`
+    + `&batchId=${batchId}`
+    + `&productCode=${productCode}`
+    + `&sets=${sets}`
+    + `&sizeJSON=${encodeURIComponent(JSON.stringify(sizes))}`
+  )
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status !== "success"){
+      alert(j.message);
+      return;
+    }
+
+    // clear input + refresh authoritative data
+    q.value = "";
+    reloadFeed();
+  });
+}
+</script>
+
+</body>
+</html>
