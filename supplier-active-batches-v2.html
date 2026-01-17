@@ -24,7 +24,20 @@ header{
   margin:0;
   padding:12px 16px;
   background:#fafafa;
-  border-bottom:1px solid #eee
+  border-bottom:1px solid #eee;
+  display:flex;
+  justify-content:space-between;
+  align-items:center
+}
+
+.closeWrap{
+  text-align:right;
+}
+.closeWrap small{
+  display:block;
+  margin-top:4px;
+  font-size:12px;
+  color:#c0392b;
 }
 
 .row{
@@ -35,10 +48,7 @@ header{
   font-size:13px;
   align-items:center
 }
-.row.head{
-  font-weight:bold;
-  background:#f9f9f9
-}
+.row.head{font-weight:bold;background:#f9f9f9}
 
 .buyerBox{
   background:#fafafa;
@@ -54,15 +64,9 @@ header{
   border-top:1px solid #eee;
   align-items:center
 }
-.buyerRow.head{
-  font-weight:bold;
-  background:#eee
-}
+.buyerRow.head{font-weight:bold;background:#eee}
 
-input.qty{
-  width:60px;
-  padding:4px
-}
+input.qty{width:60px;padding:4px}
 button{
   padding:4px 8px;
   background:#000;
@@ -71,9 +75,7 @@ button{
   cursor:pointer;
   margin-right:4px
 }
-button.reject{
-  background:#c0392b
-}
+button.reject{background:#c0392b}
 input[disabled],
 button[disabled]{
   background:#aaa;
@@ -100,14 +102,11 @@ function load(){
   fetch(`${API}?action=getSupplierActiveBatches&supplierId=${encodeURIComponent(supplierId)}`)
   .then(r=>r.json())
   .then(j=>{
-    if(j.status !== "success"){
-      document.getElementById("batches").innerText = j.message || "Failed to load";
+    if(j.status!=="success"){
+      document.getElementById("batches").innerText=j.message||"Failed to load";
       return;
     }
-    render(j.data || []);
-  })
-  .catch(()=>{
-    document.getElementById("batches").innerText = "Network error";
+    render(j.data||[]);
   });
 }
 
@@ -116,20 +115,26 @@ load();
 /* ================= RENDER ================= */
 
 function render(batches){
-  const wrap = document.getElementById("batches");
-  wrap.innerHTML = "";
+  const wrap=document.getElementById("batches");
+  wrap.innerHTML="";
 
   if(!batches.length){
-    wrap.innerHTML = "<small>No active batches</small>";
+    wrap.innerHTML="<small>No active batches</small>";
     return;
   }
 
   batches.forEach(b=>{
-    const block = document.createElement("div");
-    block.className = "batch";
+    const block=document.createElement("div");
+    block.className="batch";
 
-    block.innerHTML = `
-      <h3>Batch ${b.batchId}</h3>
+    block.innerHTML=`
+      <h3>
+        <span>Batch ${b.batchId}</span>
+        <span class="closeWrap" id="close-${b.batchId}">
+          <small>Checking…</small>
+        </span>
+      </h3>
+
       <div class="row head">
         <div>Product</div>
         <div>Batch</div>
@@ -139,41 +144,42 @@ function render(batches){
       </div>
     `;
 
-    (b.items || []).forEach(i=>{
-      block.innerHTML += `
+    (b.items||[]).forEach(i=>{
+      block.innerHTML+=`
         <div class="row">
-          <div><b>${i.productCode}</b><br>${i.productName || ""}</div>
-          <div>${i.totalSets || 0}</div>
-          <div>${i.approvedSets || 0}</div>
-          <div>${i.requestedSets || 0}</div>
-          <div><b>${i.availableSets || 0}</b></div>
+          <div><b>${i.productCode}</b><br>${i.productName||""}</div>
+          <div>${i.totalSets||0}</div>
+          <div>${i.approvedSets||0}</div>
+          <div>${i.requestedSets||0}</div>
+          <div><b>${i.availableSets||0}</b></div>
         </div>
         <div id="buyers-${b.batchId}-${i.productCode}"></div>
       `;
-      loadBuyers(b.batchId, i.productCode);
+      loadBuyers(b.batchId,i.productCode);
     });
 
     wrap.appendChild(block);
+    checkClose(b.batchId);
   });
 }
 
 /* ================= BUYER ROWS ================= */
 
-function loadBuyers(batchId, productCode){
+function loadBuyers(batchId,productCode){
   fetch(`${API}?action=getBuyerRequestsForBatchProduct`
     + `&batchId=${encodeURIComponent(batchId)}`
     + `&productCode=${encodeURIComponent(productCode)}`)
   .then(r=>r.json())
   .then(j=>{
-    if(j.status !== "success") return;
+    if(j.status!=="success") return;
 
-    const div = document.getElementById(`buyers-${batchId}-${productCode}`);
-    if(!div || !j.data || !j.data.length){
-      div.innerHTML = "";
+    const div=document.getElementById(`buyers-${batchId}-${productCode}`);
+    if(!div||!j.data||!j.data.length){
+      if(div) div.innerHTML="";
       return;
     }
 
-    let h = `
+    let h=`
       <div class="buyerBox">
         <div class="buyerRow head">
           <div>Buyer</div>
@@ -186,12 +192,12 @@ function loadBuyers(batchId, productCode){
 
     j.data.forEach(b=>{
       const isLocked =
-        Number(b.approvedSets) > 0 ||
-        b.status !== "OPEN";
+        Number(b.approvedSets)>0 ||
+        b.status!=="OPEN";
 
-      const disabled = isLocked ? "disabled" : "";
+      const disabled=isLocked?"disabled":"";
 
-      h += `
+      h+=`
         <div class="buyerRow">
           <div>${b.buyerId}</div>
           <div>${b.requestedSets}</div>
@@ -220,30 +226,64 @@ function loadBuyers(batchId, productCode){
       `;
     });
 
-    div.innerHTML = h + "</div>";
+    div.innerHTML=h+"</div>";
+  });
+}
+
+/* ================= CLOSE BATCH ================= */
+
+function checkClose(batchId){
+  fetch(`${API}?action=canCloseBatch&batchId=${encodeURIComponent(batchId)}`)
+  .then(r=>r.json())
+  .then(j=>{
+    const div=document.getElementById(`close-${batchId}`);
+    if(!div) return;
+
+    if(j.canClose){
+      div.innerHTML=`
+        <button onclick="closeBatch('${batchId}')">
+          Close Batch
+        </button>
+      `;
+    }else{
+      div.innerHTML=`
+        <button disabled>Close Batch</button>
+        <small>Pending buyer approvals exist</small>
+      `;
+    }
+  });
+}
+
+function closeBatch(batchId){
+  if(!confirm("Close this batch? Unsold stock will return to godown.")) return;
+
+  fetch(`${API}?action=closeBatch&batchId=${encodeURIComponent(batchId)}`)
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.status!=="success"){
+      alert(j.message);
+      return;
+    }
+    location.reload();
   });
 }
 
 /* ================= ACTIONS ================= */
 
-function saveIntent(basketId, productCode){
-  const v = document.getElementById(`i-${basketId}-${productCode}`).value;
-
+function saveIntent(basketId,productCode){
+  const v=document.getElementById(`i-${basketId}-${productCode}`).value;
   fetch(`${API}?action=updateSupplierIntent`
     + `&basketId=${encodeURIComponent(basketId)}`
     + `&productCode=${encodeURIComponent(productCode)}`
     + `&sets=${encodeURIComponent(v)}`)
   .then(r=>r.json())
   .then(j=>{
-    if(j.status !== "success"){
-      alert(j.message);
-      return;
-    }
+    if(j.status!=="success"){alert(j.message);return;}
     load();
   });
 }
 
-function approve(basketId, batchId, productCode){
+function approve(basketId,batchId,productCode){
   if(!confirm("Approve this buyer for this product?")) return;
 
   fetch(`${API}?action=approveBasketItem`
@@ -252,15 +292,12 @@ function approve(basketId, batchId, productCode){
     + `&productCode=${encodeURIComponent(productCode)}`)
   .then(r=>r.json())
   .then(j=>{
-    if(j.status !== "success"){
-      alert(j.message);
-      return;
-    }
+    if(j.status!=="success"){alert(j.message);return;}
     load();
   });
 }
 
-function reject(basketId, batchId, productCode){
+function reject(basketId,batchId,productCode){
   if(!confirm("Reject buyer request?")) return;
 
   fetch(`${API}?action=rejectBasketItem`
