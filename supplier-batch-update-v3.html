@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Supplier – Stock Updates</title>
+
+<style>
+body{font-family:Arial,sans-serif;background:#f4f5f7;margin:0}
+header{background:#fff;padding:18px 22px;border-bottom:1px solid #ddd;font-size:20px;font-weight:600}
+
+.container{
+  display:grid;
+  grid-template-columns:1fr 360px 1fr;
+  gap:24px;
+  padding:24px
+}
+
+.panel{
+  background:#fff;
+  padding:18px;
+  border-radius:10px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06)
+}
+
+.panel h3{margin-top:0;font-size:16px}
+
+.top{display:flex;gap:10px;margin-bottom:14px}
+.top input{flex:1}
+
+input, textarea, select{
+  width:100%;
+  padding:10px;
+  margin-top:6px;
+  border:1px solid #ccc;
+  border-radius:6px;
+  font-size:14px
+}
+
+button{
+  padding:10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:13px;
+  width:100%;
+}
+button.small{padding:6px 10px;font-size:12px;width:auto}
+button.warn{background:#c62828}
+
+.products{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px
+}
+
+.product{
+  display:flex;
+  gap:10px;
+  padding:10px;
+  border:1px solid #e5e5e5;
+  border-radius:10px
+}
+
+.product img{
+  width:60px;height:80px;
+  object-fit:cover;
+  background:#eee;border-radius:6px
+}
+
+.product small{display:block;color:#555;font-size:12px}
+
+.stock.ok{color:#2e7d32;font-weight:600}
+.stock.low{color:#c62828;font-weight:600}
+
+.batch-box{
+  background:#fff8c4;
+  padding:12px;
+  border-radius:8px;
+  font-size:14px;
+  margin-bottom:16px
+}
+
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+
+<header>SUPPLIER – STOCK UPDATES</header>
+
+<div class="container">
+
+<!-- LEFT -->
+<div class="panel">
+  <h3>Products</h3>
+  <div class="top">
+    <select id="sort" onchange="renderProducts()">
+      <option value="latest">Latest</option>
+      <option value="name">Name</option>
+      <option value="stock">Allocatable</option>
+    </select>
+    <input id="search" placeholder="Search product" oninput="renderProducts()">
+  </div>
+  <div id="productList" class="products">Loading…</div>
+</div>
+
+<!-- CENTER -->
+<div class="panel">
+  <h3>Batch Control</h3>
+
+  <div id="noBatch">
+    <button onclick="startBatch()">Start Batch</button>
+  </div>
+
+  <div id="batchRunning" class="hidden">
+    <div class="batch-box">
+      <b>Batch Running</b><br>
+      Batch ID: <span id="batchIdText"></span><br>
+      Started at: <span id="batchTimeText"></span><br>
+      Supplier: SUP001
+    </div>
+
+    <div id="selectedProductInfo"
+      style="font-size:13px;color:#555;margin-bottom:10px">
+      Select product from left
+    </div>
+
+    <input id="batchProductCode" placeholder="Product code" disabled>
+    <input id="batchSets" placeholder="Sets to allocate">
+    <textarea id="batchComment" placeholder="Product note for buyers"></textarea>
+
+    <button onclick="addProductToBatch()">Add to Batch</button>
+  </div>
+</div>
+
+<!-- RIGHT -->
+<div class="panel">
+  <h3>Current Batch</h3>
+  <div id="batchItems" style="font-size:14px;color:#777">No active batch</div>
+  <button style="margin-top:16px" onclick="publishBatch()">Publish Batch</button>
+</div>
+
+</div>
+
+<script>
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const SUPPLIER_ID="SUP001";
+
+let products=[];
+let batchId=null;
+
+/* LOAD PRODUCTS */
+function loadProducts(){
+  fetch(`${API}?action=getProductsBySupplier&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      products=j.data||[];
+      renderProducts();
+    });
+}
+
+/* RENDER PRODUCTS */
+function renderProducts(){
+  const q=search.value.toLowerCase();
+  let list=products.filter(p=>
+    String(p.productCode).includes(q) ||
+    p.productName.toLowerCase().includes(q)
+  );
+
+  if(sort.value==="name"){
+    list.sort((a,b)=>a.productName.localeCompare(b.productName));
+  }else if(sort.value==="stock"){
+    list.sort((a,b)=>(b.allocatable||0)-(a.allocatable||0));
+  }else{
+    list.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  }
+
+  productList.innerHTML="";
+  list.forEach(p=>{
+    productList.innerHTML+=`
+      <div class="product">
+        <img src="${p.imageURLs?.[0]||""}">
+        <div style="flex:1">
+          <b>${p.productCode}</b>
+          <small>${p.productName}</small>
+          <small>₹${p.pricePerPC}</small>
+          <small>Godown: ${p.physicalStock}</small>
+          <small>Allocated: ${p.allocatedStock}</small>
+          <small class="stock ${p.allocatable>0?'ok':'low'}">
+            Allocatable: ${p.allocatable}
+          </small>
+        </div>
+        <button class="small"
+          onclick="selectForBatch('${p.productCode}')"
+          ${p.allocatable<=0?'disabled':''}>
+          Add
+        </button>
+      </div>`;
+  });
+}
+
+/* SELECT PRODUCT */
+function selectForBatch(code){
+  if(!batchId){ alert("Start batch first"); return; }
+  const p=products.find(x=>String(x.productCode)===String(code));
+  if(!p) return;
+
+  batchProductCode.value=code;
+  batchSets.value="";
+  batchComment.value="";
+
+  selectedProductInfo.innerHTML=`
+    <b>${p.productName}</b><br>
+    Allocatable sets: ${p.allocatable}
+  `;
+}
+
+/* START BATCH */
+function startBatch(){
+  fetch(`${API}?action=startBatch&supplierId=${SUPPLIER_ID}`)
+    .then(r=>r.json())
+    .then(j=>{
+      batchId=j.data.batchId;
+      noBatch.classList.add("hidden");
+      batchRunning.classList.remove("hidden");
+      batchIdText.innerText=batchId;
+      batchTimeText.innerText=new Date().toLocaleString();
+      loadBatchItems();
+    });
+}
+
+/* ADD PRODUCT TO BATCH */
+function addProductToBatch(){
+  fetch(`${API}?action=addProductToBatch`
+    + `&batchId=${batchId}`
+    + `&productCode=${batchProductCode.value}`
+    + `&totalSets=${batchSets.value}`
+    + `&comment=${encodeURIComponent(batchComment.value)}`
+  )
+  .then(()=>{ 
+    batchProductCode.value=batchSets.value=batchComment.value="";
+    loadBatchItems(); 
+    loadProducts(); 
+  });
+}
+
+/* LOAD BATCH ITEMS */
+function loadBatchItems(){
+  fetch(`${API}?action=getBatchItems&batchId=${batchId}`)
+    .then(r=>r.json())
+    .then(j=>{
+      batchItems.innerHTML="";
+      (j.data||[]).forEach(p=>{
+        batchItems.innerHTML+=`
+          <div class="product">
+            <img src="${p.imageURLs?.[0]||""}">
+            <div style="flex:1">
+              <b>${p.productCode}</b>
+              <small>${p.productName}</small>
+              <small>Sets: ${p.sets}</small>
+              ${p.comment?`<small>📝 ${p.comment}</small>`:""}
+            </div>
+            <button class="small warn"
+              onclick="removeFromBatch('${p.productCode}')">✖</button>
+          </div>`;
+      });
+    });
+}
+
+/* REMOVE FROM BATCH */
+function removeFromBatch(code){
+  if(!confirm("Remove this product from batch?")) return;
+  fetch(`${API}?action=removeProductFromBatch&batchId=${batchId}&productCode=${code}`)
+    .then(r=>r.json())
+    .then(j=>{
+      if(j.status!=="success"){ alert(j.message); return; }
+      loadBatchItems();
+      loadProducts();
+    });
+}
+
+/* PUBLISH BATCH */
+function publishBatch(){
+  if(!batchId) return;
+  if(!confirm("Publish this batch to buyers?")) return;
+  fetch(`${API}?action=publishBatch&batchId=${batchId}`)
+    .then(()=>location.reload());
+}
+
+loadProducts();
+</script>
+</body>
+</html>
