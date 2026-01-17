@@ -203,7 +203,7 @@ function loadBuyers(batchId, productCode){
               Save
             </button>
             <button ${disabled}
-              onclick="approve('${b.basketId}')">
+              onclick="approve('${b.basketId}','${batchId}','${productCode}')">
               Approve
             </button>
             <button class="reject" ${disabled}
@@ -239,13 +239,17 @@ function saveIntent(basketId, productCode){
   });
 }
 
-function approve(basketId){
-  if(!confirm("Approve this buyer and lock stock?")) return;
+function approve(basketId, batchId, productCode){
+  if(!confirm("Approve this buyer for this product?")) return;
 
-  fetch(`${API}?action=approveBasket&basketId=${encodeURIComponent(basketId)}`)
+  fetch(`${API}?action=approveBasketItem`
+    + `&basketId=${encodeURIComponent(basketId)}`
+    + `&batchId=${encodeURIComponent(batchId)}`
+    + `&productCode=${encodeURIComponent(productCode)}`
+  )
   .then(r=>r.json())
   .then(j=>{
-    if(j.status !== "success"){
+    if(j.status!=="success"){
       alert(j.message);
       return;
     }
