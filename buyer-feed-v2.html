@@ -9,13 +9,35 @@ body{font-family:Arial;background:#f5f5f5;margin:0}
 header{background:#fff;padding:12px;border-bottom:1px solid #ddd;font-weight:bold}
 .batch{padding:12px}
 .card{
-  background:#fff;padding:10px;margin-top:8px;
-  display:flex;gap:10px;border-radius:6px;border:1px solid #ddd
+  background:#fff;
+  padding:10px;
+  margin-top:8px;
+  display:flex;
+  gap:10px;
+  border-radius:6px;
+  border:1px solid #ddd
 }
-img{width:70px;height:90px;object-fit:cover;border-radius:4px}
+img{
+  width:70px;
+  height:90px;
+  object-fit:cover;
+  border-radius:4px;
+  background:#eee
+}
 small{color:#555}
-button{margin-top:6px;padding:6px 10px;background:#000;color:#fff;border:none;cursor:pointer}
-.qty{width:60px;padding:5px;margin-top:6px}
+button{
+  margin-top:6px;
+  padding:6px 10px;
+  background:#000;
+  color:#fff;
+  border:none;
+  cursor:pointer
+}
+.qty{
+  width:60px;
+  padding:5px;
+  margin-top:6px
+}
 </style>
 </head>
 
@@ -25,72 +47,106 @@ button{margin-top:6px;padding:6px 10px;background:#000;color:#fff;border:none;cu
 <div id="feed">Loading…</div>
 
 <script>
-const API="YOUR_DEPLOYED_APPS_SCRIPT_URL";
+const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
 const BUYER_ID="BUY001";
 const SUPPLIER_ID="SUP001";
 
-reload();
+/* ================= LOAD FEED ================= */
 
-/* ================= LOAD ================= */
-function reload(){
+function reloadFeed(){
   fetch(`${API}?action=getSupplierUpdates&supplierId=${SUPPLIER_ID}`)
     .then(r=>r.json())
     .then(j=>{
       if(j.status!=="success"){
-        feed.innerText=j.message; return;
+        feed.innerText=j.message || "Failed to load";
+        return;
       }
-      render(j.data||[]);
+      render(j.data || []);
+    })
+    .catch(()=>{
+      feed.innerText="Network error";
     });
 }
 
+reloadFeed();   // initial load
+
+
 /* ================= RENDER ================= */
+
 function render(batches){
-  feed.innerHTML="";
+  const f=document.getElementById("feed");
+  f.innerHTML="";
+
   if(!batches.length){
-    feed.innerHTML="<small>No stock available</small>";
+    f.innerHTML="<small>No stock available</small>";
     return;
   }
 
   batches.forEach(b=>{
     const div=document.createElement("div");
     div.className="batch";
-    div.innerHTML=`<small><b>Batch</b> ${b.batchId} | ${new Date(b.batchTime).toLocaleString()}</small>`;
 
-    b.products.forEach(p=>{
+    div.innerHTML=`
+      <small>
+        <b>Batch</b> ${b.batchId}
+        | ${new Date(b.batchTime).toLocaleString()}
+      </small>
+    `;
+
+    (b.products || []).forEach(p=>{
+      const sizes = Array.isArray(p.sizes) ? p.sizes : [];
+      const available = Number(p.availableSets) || 0;
+      const image =
+        (Array.isArray(p.imageURLs) && p.imageURLs.length)
+          ? p.imageURLs[0]
+          : "";
+
       div.innerHTML+=`
         <div class="card">
-          <img src="${p.imageURLs?.[0]||''}">
+          <img src="${image}">
           <div>
             <b>${p.productName}</b><br>
             <small>${p.productCode}</small><br>
             <small>₹${p.pricePerPC} + ${p.gstPercent}% GST</small><br>
-            <small>Sizes: ${(p.sizes||[]).join(", ")}</small><br>
-            <small>Available: <b>${p.availableSets}</b></small><br>
+            <small>Sizes in set: ${sizes.join(", ")}</small><br>
+            <small>Available Sets: <b>${available}</b></small><br>
 
             <input class="qty"
               id="q_${b.batchId}_${p.productCode}"
-              type="number" min="1" placeholder="Sets">
+              type="number"
+              min="1"
+              max="${available}"
+              placeholder="Sets">
 
             <br>
             <button onclick='add(
               "${b.batchId}",
               "${p.productCode}",
-              ${JSON.stringify(p.sizes||[])}
-            )'>Request</button>
+              ${JSON.stringify(sizes)}
+            )' ${available<=0?"disabled":""}>
+              Request
+            </button>
           </div>
         </div>
       `;
     });
 
-    feed.appendChild(div);
+    f.appendChild(div);
   });
 }
 
-/* ================= REQUEST ================= */
+
+/* ================= ADD REQUEST ================= */
+
 function add(batchId, productCode, sizes){
+
   const q=document.getElementById(`q_${batchId}_${productCode}`);
   const sets=Number(q.value);
-  if(!sets||sets<=0){ alert("Enter valid sets"); return; }
+
+  if(!sets || sets<=0){
+    alert("Enter valid sets");
+    return;
+  }
 
   fetch(`${API}?action=addToBasket`
     + `&buyerId=${BUYER_ID}`
@@ -102,9 +158,12 @@ function add(batchId, productCode, sizes){
   )
   .then(r=>r.json())
   .then(j=>{
-    if(j.status!=="success"){ alert(j.message); return; }
+    if(j.status!=="success"){
+      alert(j.message);
+      return;
+    }
     q.value="";
-    reload();   // 🔥 immediate sellable update
+    reloadFeed();   // 🔥 live sellable refresh
   });
 }
 </script>
