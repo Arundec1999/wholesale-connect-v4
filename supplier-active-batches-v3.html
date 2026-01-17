@@ -6,27 +6,10 @@
 
 <style>
 body{font-family:Arial;background:#f4f5f7;margin:0}
-header{
-  background:#fff;
-  padding:16px 20px;
-  font-size:18px;
-  font-weight:600;
-  border-bottom:1px solid #ddd
-}
+header{background:#fff;padding:16px 20px;font-size:18px;font-weight:600;border-bottom:1px solid #ddd}
 
-.batch{
-  background:#fff;
-  margin:14px;
-  border-radius:10px;
-  border:1px solid #ddd
-}
-
-.batch h3{
-  margin:0;
-  padding:12px 16px;
-  background:#fafafa;
-  border-bottom:1px solid #eee
-}
+.batch{background:#fff;margin:14px;border-radius:10px;border:1px solid #ddd}
+.batch h3{margin:0;padding:12px 16px;background:#fafafa;border-bottom:1px solid #eee}
 
 .row{
   display:grid;
@@ -36,10 +19,7 @@ header{
   font-size:13px;
   align-items:center
 }
-.row.head{
-  font-weight:bold;
-  background:#f9f9f9
-}
+.row.head{font-weight:bold;background:#f9f9f9}
 
 .buyerBox{
   background:#fafafa;
@@ -47,33 +27,18 @@ header{
   border:1px solid #ddd;
   border-radius:6px
 }
-
 .buyerRow{
   display:grid;
-  grid-template-columns:120px 80px 90px 90px 220px;
+  grid-template-columns:120px 80px 80px 80px 220px;
   padding:6px 10px;
   font-size:12px;
   border-top:1px solid #eee;
   align-items:center
 }
-.buyerRow.head{
-  font-weight:bold;
-  background:#eee
-}
+.buyerRow.head{font-weight:bold;background:#eee}
 
-input.qty{
-  width:60px;
-  padding:4px
-}
-
-button{
-  padding:4px 8px;
-  background:#000;
-  color:#fff;
-  border:none;
-  cursor:pointer;
-  margin-right:4px
-}
+input.qty{width:60px;padding:4px}
+button{padding:4px 8px;background:#000;color:#fff;border:none;cursor:pointer;margin-right:4px}
 button.reject{background:#c0392b}
 button[disabled]{background:#aaa;cursor:not-allowed}
 </style>
@@ -85,11 +50,12 @@ button[disabled]{background:#aaa;cursor:not-allowed}
 <div id="batches">Loading…</div>
 
 <script>
-const API="https://script.google.com/macros/s/AKfycbzmemqtHqusZH8IClo9QWFM0RGks6qEzBd10aUP44XU-ImZo146DCmP1n4v1cevjFyr/exec";
+const API="YOUR_DEPLOYED_APPS_SCRIPT_URL";
 const SUPPLIER_ID = localStorage.getItem("supplierId") || "SUP001";
 
-/* ================= LOAD ================= */
+load();
 
+/* ================= LOAD ================= */
 function load(){
   fetch(`${API}?action=getSupplierActiveBatches&supplierId=${SUPPLIER_ID}`)
     .then(r=>r.json())
@@ -102,99 +68,89 @@ function load(){
     });
 }
 
-load();
-
 /* ================= RENDER ================= */
-
 function render(data){
-  const wrap = document.getElementById("batches");
-  wrap.innerHTML="";
-
+  batches.innerHTML="";
   if(!data.length){
-    wrap.innerHTML="<small>No active batches</small>";
+    batches.innerHTML="<small>No active batches</small>";
     return;
   }
 
-  data.forEach(batch=>{
+  data.forEach(b=>{
     const block=document.createElement("div");
     block.className="batch";
 
     block.innerHTML=`
-      <h3>Batch ${batch.batchId}</h3>
+      <h3>Batch ${b.batchId}</h3>
       <div class="row head">
         <div>Product</div>
         <div>Batch</div>
         <div>Approved</div>
         <div>Requested</div>
-        <div>Sellable</div>
+        <div>Available</div>
       </div>
     `;
 
-    batch.items.forEach(item=>{
+    b.items.forEach(i=>{
       block.innerHTML+=`
         <div class="row">
-          <div><b>${item.productCode}</b><br>${item.productName||""}</div>
-          <div>${item.totalSets}</div>
-          <div>${item.approvedSets}</div>
-          <div>${item.requestedSets}</div>
-          <div><b>${item.availableSets}</b></div>
+          <div><b>${i.productCode}</b><br>${i.productName||""}</div>
+          <div>${i.totalSets}</div>
+          <div>${i.approvedSets}</div>
+          <div>${i.requestedSets}</div>
+          <div><b>${i.availableSets}</b></div>
         </div>
-        <div id="buyers-${item.productCode}-${batch.batchId}"></div>
+        <div id="buyers-${b.batchId}-${i.productCode}"></div>
       `;
-      loadBuyers(batch.batchId,item.productCode);
+      loadBuyers(b.batchId,i.productCode);
     });
 
-    wrap.appendChild(block);
+    batches.appendChild(block);
   });
 }
 
-/* ================= BUYER BREAKDOWN ================= */
-
+/* ================= BUYERS ================= */
 function loadBuyers(batchId, productCode){
   fetch(`${API}?action=getBuyerRequestsForBatchProduct&batchId=${batchId}&productCode=${productCode}`)
     .then(r=>r.json())
     .then(j=>{
       if(j.status!=="success") return;
 
-      const div=document.getElementById(`buyers-${productCode}-${batchId}`);
-      if(!j.data.length){
-        div.innerHTML="";
-        return;
-      }
+      const div=document.getElementById(`buyers-${batchId}-${productCode}`);
+      if(!j.data.length){ div.innerHTML=""; return; }
 
       let h=`
         <div class="buyerBox">
           <div class="buyerRow head">
             <div>Buyer</div>
-            <div>Requested</div>
+            <div>Req</div>
             <div>Intent</div>
-            <div>Approved</div>
+            <div>Appr</div>
             <div>Action</div>
           </div>
       `;
 
-      j.data.forEach(row=>{
-        const locked = row.approvedSets>0 || row.status!=="OPEN";
-        const inputId = `intent-${row.basketItemId}`;
+      j.data.forEach(b=>{
+        const locked = b.approvedSets>0 || b.status!=="OPEN";
 
         h+=`
           <div class="buyerRow">
-            <div>${row.buyerId}</div>
-            <div>${row.requestedSets}</div>
+            <div>${b.buyerId}</div>
+            <div>${b.requestedSets}</div>
             <div>
               <input class="qty"
-                id="${inputId}"
-                value="${row.intentSets}"
+                id="intent-${b.basketItemId}"
+                value="${b.intentSets}"
                 ${locked?"disabled":""}>
             </div>
-            <div>${row.approvedSets}</div>
+            <div>${b.approvedSets}</div>
             <div>
               <button ${locked?"disabled":""}
-                onclick="saveIntent('${row.basketItemId}')">Save</button>
+                onclick="saveIntent('${b.basketItemId}')">Save</button>
               <button ${locked?"disabled":""}
-                onclick="approve('${row.basketItemId}')">Approve</button>
+                onclick="approve('${b.basketItemId}')">Approve</button>
               <button class="reject" ${locked?"disabled":""}
-                onclick="rejectItem('${row.basketItemId}')">Reject</button>
+                onclick="rejectItem('${b.basketItemId}')">Reject</button>
             </div>
           </div>
         `;
@@ -205,36 +161,25 @@ function loadBuyers(batchId, productCode){
 }
 
 /* ================= ACTIONS ================= */
-
-function saveIntent(basketItemId){
-  const v=document.getElementById(`intent-${basketItemId}`).value;
-
-  fetch(`${API}?action=updateSupplierIntent&basketItemId=${basketItemId}&sets=${v}`)
+function saveIntent(id){
+  const v=document.getElementById(`intent-${id}`).value;
+  fetch(`${API}?action=updateSupplierIntent&basketItemId=${id}&sets=${v}`)
     .then(r=>r.json())
-    .then(j=>{
-      if(j.status!=="success"){ alert(j.message); return; }
-      load();
-    });
+    .then(j=>{ if(j.status!=="success") alert(j.message); load(); });
 }
 
-function approve(basketItemId){
-  if(!confirm("Approve this buyer for this product?")) return;
-
-  fetch(`${API}?action=approveBasketItem&basketItemId=${basketItemId}`)
+function approve(id){
+  if(!confirm("Approve this request?")) return;
+  fetch(`${API}?action=approveBasketItem&basketItemId=${id}`)
     .then(r=>r.json())
-    .then(j=>{
-      if(j.status!=="success"){ alert(j.message); return; }
-      load();
-    });
+    .then(j=>{ if(j.status!=="success") alert(j.message); load(); });
 }
 
-function rejectItem(basketItemId){
-  if(!confirm("Reject buyer request?")) return;
-
-  fetch(`${API}?action=rejectBasketItem&basketItemId=${basketItemId}`)
+function rejectItem(id){
+  if(!confirm("Reject this request?")) return;
+  fetch(`${API}?action=rejectBasketItem&basketItemId=${id}`)
     .then(()=>load());
 }
 </script>
-
 </body>
 </html>
